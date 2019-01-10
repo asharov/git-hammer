@@ -1,5 +1,5 @@
 import re
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, orm
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -36,6 +36,14 @@ class Commit(Base):
     commit_time = Column(DateTime, nullable=False)
 
     author = relationship('Author', back_populates='commits')
+
+    def __init__(self, **kwargs):
+        super(Commit, self).__init__(**kwargs)
+        self.init_properties()
+
+    @orm.reconstructor
+    def init_properties(self):
+        self.line_counts = {}
 
 
 Author.commits = relationship('Commit', order_by=Commit.commit_time, back_populates='author')

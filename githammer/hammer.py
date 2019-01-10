@@ -44,9 +44,9 @@ def _matches_file_pattern(file, pattern):
         raise TypeError('Pattern {} not list or string'.format(pattern))
 
 
-def _print_line_counts(linecounts):
-    for author, count in sorted(linecounts.items(), key=itemgetter(1), reverse=True):
-        print('{}\t{}'.format(count, author.canonical_name))
+def _print_line_counts(line_counts):
+    for author, count in sorted(line_counts.items(), key=itemgetter(1), reverse=True):
+        print('{:>10}  {}'.format(count, author.canonical_name))
 
 
 def _author_line(commit):
@@ -55,15 +55,19 @@ def _author_line(commit):
 
 class Hammer:
 
-    def _build_author_map(self):
-        authors = {}
-        session = self.Session()
+    def _build_author_map(self, session):
+        self.names_to_authors = {}
         for dbauthor in session.query(Author):
-            authors[dbauthor.canonical_name] = dbauthor
+            self.names_to_authors[dbauthor.canonical_name] = dbauthor
             for alias in dbauthor.aliases:
-                authors[alias] = dbauthor
-        session.close()
-        return authors
+                self.names_to_authors[alias] = dbauthor
+
+    def _build_commit_map(self, session):
+        self.shas_to_commits = {}
+        for dbcommit in session.query(Commit):
+            self.shas_to_commits[dbcommit.hexsha] = dbcommit
+            for line_count in session.query(LineCount).filter_by(commit_id=dbcommit.hexsha):
+                dbcommit.line_counts[line_count.author] = line_count.line_count
 
     def _is_source_file(self, path):
         source_files = self.configuration.get('sourceFiles')
@@ -74,22 +78,22 @@ class Hammer:
             path, excluded_source_files)
         return is_included and not is_excluded
 
-    def _blame_blob_into_linecounts(self, commit_to_blame, path, linecounts):
+    def _blame_blob_into_line_counts(self, commit_to_blame, path, line_counts):
         if not self._is_source_file(path):
             return
         blame = self.repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
             author = self.names_to_authors[_author_line(commit)]
-            linecounts[author] = linecounts.get(author, 0) + len(lines)
+            line_counts[author] = line_counts.get(author, 0) + len(lines)
 
     def _make_full_commit_stats(self, commit):
-        linecounts = {}
+        line_counts = {}
         for object in commit.tree.traverse(visit_once=True):
             if object.type != 'blob':
                 continue
-            self._blame_blob_into_linecounts(
-                commit, object.path, linecounts)
-        return linecounts
+            self._blame_blob_into_line_counts(
+                commit, object.path, line_counts)
+        return line_counts
 
     def _make_diffed_commit_stats(self, current_commit, next_commit, next_commit_stats):
         diff_index = next_commit.diff(current_commit)
@@ -105,17 +109,17 @@ class Hammer:
         for modify_diff in diff_index.iter_change_type('M'):
             current_files.add(modify_diff.b_path)
             next_files.add(modify_diff.a_path)
-        next_linecounts = {}
-        current_linecounts = {}
+        next_line_counts = {}
+        current_line_counts = {}
         for current_file in current_files:
-            self._blame_blob_into_linecounts(
-                current_commit, current_file, current_linecounts)
+            self._blame_blob_into_line_counts(
+                current_commit, current_file, current_line_counts)
         for next_file in next_files:
-            self._blame_blob_into_linecounts(
-                next_commit, next_file, next_linecounts)
-        difference = subtract_count_dict(current_linecounts, next_linecounts)
-        linecounts = add_count_dict(next_commit_stats, difference)
-        return linecounts
+            self._blame_blob_into_line_counts(
+                next_commit, next_file, next_line_counts)
+        difference = subtract_count_dict(current_line_counts, next_line_counts)
+        line_counts = add_count_dict(next_commit_stats, difference)
+        return line_counts
 
     def _add_author_alias_if_needed(self, author_line):
         if not self.names_to_authors.get(author_line):
@@ -154,13 +158,15 @@ class Hammer:
                     deleted_lines += int(match.group(2))
             commit_object.added_lines = added_lines
             commit_object.deleted_lines = deleted_lines
+        self.shas_to_commits[commit.hexsha] = commit_object
         session.add(commit_object)
 
-    def _add_commit_linecounts(self, commit, linecounts, session):
-        for author, count in linecounts.items():
-            linecount = LineCount(
+    def _add_commit_line_counts(self, commit, line_counts, session):
+        self.shas_to_commits[commit.hexsha].line_counts = line_counts
+        for author, count in line_counts.items():
+            line_count = LineCount(
                 author_name=author.canonical_name, commit_id=commit.hexsha, line_count=count)
-            session.add(linecount)
+            session.add(line_count)
 
     def __init__(self, repository_directory, name=None, configuration_file=None):
         self.repository_directory = os.path.abspath(repository_directory)
@@ -185,39 +191,43 @@ class Hammer:
             create_database(engine.url)
         Base.metadata.create_all(engine)
         self.Session = sessionmaker(bind=engine)
-        self.names_to_authors = self._build_author_map()
+        session = self.Session()
+        self._build_author_map(session)
+        self._build_commit_map(session)
+        session.close()
 
     def build(self):
         session = self.Session(expire_on_commit=False)
         start_time = datetime.datetime.now()
         self._add_canonical_authors(session)
-        processed_commits = {}
         head = self.repository.head.commit
+        if self.shas_to_commits.get(head.hexsha):
+            _print_line_counts(self.shas_to_commits[head.hexsha].line_counts)
+            return
         self._add_commit_object(head, session)
-        head_linecounts = self._make_full_commit_stats(head)
-        self._add_commit_linecounts(head, head_linecounts, session)
-        processed_commits[head.hexsha] = head_linecounts
+        head_line_counts = self._make_full_commit_stats(head)
+        self._add_commit_line_counts(head, head_line_counts, session)
         commits_to_process = deque([head])
         commit_count = 1
         print('Commit {:>5}: {}'.format(
             commit_count, datetime.datetime.now() - start_time))
         while commits_to_process:
             current_commit = commits_to_process.popleft()
-            current_commit_stats = processed_commits[current_commit.hexsha]
+            current_commit_stats = self.shas_to_commits[current_commit.hexsha].line_counts
             for parent in current_commit.parents:
-                if not processed_commits.get(parent.hexsha):
+                if not self.shas_to_commits.get(parent.hexsha):
                     self._add_commit_object(parent, session)
-                    parent_linecounts = self._make_diffed_commit_stats(
+                    parent_line_counts = self._make_diffed_commit_stats(
                         parent, current_commit, current_commit_stats)
-                    self._add_commit_linecounts(
-                        parent, parent_linecounts, session)
-                    processed_commits[parent.hexsha] = parent_linecounts
+                    self._add_commit_line_counts(
+                        parent, parent_line_counts, session)
                     commits_to_process.append(parent)
                     commit_count += 1
                     if commit_count % 20 == 0:
                         print('Commit {:>5}: {}'.format(
                             commit_count, datetime.datetime.now() - start_time))
         session.commit()
+        _print_line_counts(self.shas_to_commits[head.hexsha].line_counts)
 
 
 if __name__ == '__main__':
