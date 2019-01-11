@@ -14,30 +14,14 @@ from sqlalchemy_utils import create_database, database_exists
 
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, LineCount
-
-_glob_replacements = {
-    '/**/': '/.*/',
-    '/**': '/.*',
-    '**/': '.*/',
-    '*': '[^/]*',
-    '?': '.'
-}
-_glob_patterns = sorted(_glob_replacements, key=len, reverse=True)
-_glob_pattern_matcher = re.compile('|'.join(map(re.escape, _glob_patterns)))
+from globber import matches_glob
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 
 
-def _glob_to_regex(glob):
-    regex = _glob_pattern_matcher.sub(
-        lambda match: _glob_replacements[match.group(0)], glob)
-    return regex + '$'
-
-
 def _matches_file_pattern(file, pattern):
     if type(pattern) is str:
-        regex = _glob_to_regex(pattern)
-        return re.search(regex, file) != None
+        return matches_glob(pattern, file)
     elif type(pattern) is list:
         return any(_matches_file_pattern(file, p) for p in pattern)
     else:
