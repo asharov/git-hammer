@@ -42,7 +42,7 @@ def lines_per_author(hammer, min_lines_per_author=0):
     date_array = []
     line_count_array = [[] for _ in range(len(author_list))]
     for commit in hammer.iter_commits(frequency=Frequency.daily):
-        date_array.append(commit.commit_time.date())
+        date_array.append(commit.commit_time)
         for index, author in enumerate(author_list):
             line_count_array[index].append(commit.line_counts.get(author, 0))
     figure = mpplot.figure()
