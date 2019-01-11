@@ -34,7 +34,7 @@ class Commit(Base):
     author_name = Column(String, ForeignKey('authors.canonical_name'), nullable=False)
     added_lines = Column(Integer)
     deleted_lines = Column(Integer)
-    commit_time = Column(DateTime, nullable=False)
+    commit_time = Column(DateTime(timezone=True), nullable=False)
     parent_ids = Column(postgresql.ARRAY(String))
 
     author = relationship('Author', back_populates='commits')

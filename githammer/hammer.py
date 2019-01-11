@@ -39,7 +39,7 @@ def _author_line(commit):
 
 def _start_of_interval(dt, frequency):
     if frequency is Frequency.daily:
-        return datetime.datetime.combine(dt.date(), datetime.time())
+        return datetime.datetime.combine(dt.date(), datetime.time(tzinfo=dt.tzinfo))
     elif frequency is Frequency.weekly:
         monday_dt = dt - datetime.timedelta(days=dt.weekday())
         return _start_of_interval(monday_dt, Frequency.daily)
@@ -139,7 +139,7 @@ class Hammer:
         self._add_author_alias_if_needed(author_line)
         author = self.names_to_authors[author_line]
         commit_object = Commit(
-            hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime.replace(tzinfo=None), parent_ids=[])
+            hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime, parent_ids=[])
         if len(commit.parents) == 1:
             diff_stat = self.repository.git.diff(
                 commit.parents[0], commit, numstat=True)
