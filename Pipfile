@@ -10,7 +10,8 @@ gitpython = "*"
 sqlalchemy = "*"
 sqlalchemy-utils = "*"
 matplotlib = "*"
-psycopg2 = "*"
+python-dateutil = "*"
+psycopg2-binary = "*"
 
 [requires]
 python_version = "3.7"

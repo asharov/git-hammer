@@ -1,4 +1,3 @@
-import argparse
 import datetime
 import errno
 import json
@@ -12,9 +11,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
+from globber import matches_glob
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, LineCount
-from globber import matches_glob
+from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 
@@ -35,6 +35,20 @@ def _print_line_counts(line_counts):
 
 def _author_line(commit):
     return f"{commit.author.name} <{commit.author.email}>"
+
+
+def _start_of_interval(dt, frequency):
+    if frequency is Frequency.daily:
+        return datetime.datetime.combine(dt.date(), datetime.time())
+    elif frequency is Frequency.weekly:
+        monday_dt = dt - datetime.timedelta(days=dt.weekday())
+        return _start_of_interval(monday_dt, Frequency.daily)
+    elif frequency is Frequency.monthly:
+        first_dt = dt.replace(day=1)
+        return _start_of_interval(first_dt, Frequency.daily)
+    elif frequency is Frequency.yearly:
+        january_dt = dt.replace(month=1)
+        return _start_of_interval(january_dt, Frequency.monthly)
 
 
 class Hammer:
@@ -125,7 +139,7 @@ class Hammer:
         self._add_author_alias_if_needed(author_line)
         author = self.names_to_authors[author_line]
         commit_object = Commit(
-            hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime)
+            hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime.replace(tzinfo=None), parent_ids=[])
         if len(commit.parents) == 1:
             diff_stat = self.repository.git.diff(
                 commit.parents[0], commit, numstat=True)
@@ -210,16 +224,35 @@ class Hammer:
                     if commit_count % 20 == 0:
                         print('Commit {:>5}: {}'.format(
                             commit_count, datetime.datetime.now() - start_time))
+                self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
         session.commit()
         _print_line_counts(self.shas_to_commits[head.hexsha].line_counts)
 
+    def _iter_branch(self, branch_name=None):
+        commits = []
+        branch = self.repository.branches[branch_name] if branch_name else self.repository.head
+        commit_id = branch.commit.hexsha
+        while commit_id:
+            commit = self.shas_to_commits.get(commit_id)
+            if commit:
+                commits.append(commit)
+                commit_id = commit.parent_ids[0] if commit.parent_ids else None
+            else:
+                break
+        return reversed(commits).__iter__()
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='Extract statistics from Git repositories')
-    parser.add_argument('repository')
-    parser.add_argument('--project')
-    parser.add_argument('--configuration')
-    options = parser.parse_args()
-    hammer = Hammer(options.repository, options.project, options.configuration)
-    hammer.build()
+    def iter_authors(self):
+        return set(self.names_to_authors.values()).__iter__()
+
+    def iter_commits(self, **kwargs):
+        branch_iterator = self._iter_branch(kwargs.get('branch_name'))
+        if not kwargs.get('frequency'):
+            for commit in branch_iterator:
+                yield commit
+        else:
+            next_commit_time = None
+            for commit in branch_iterator:
+                if not next_commit_time or commit.commit_time >= next_commit_time:
+                    yield commit
+                    start = _start_of_interval(commit.commit_time, kwargs['frequency'])
+                    next_commit_time = kwargs['frequency'].next_instance(start)

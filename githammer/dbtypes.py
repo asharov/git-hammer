@@ -1,8 +1,9 @@
 import re
+
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, orm
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
@@ -34,6 +35,7 @@ class Commit(Base):
     added_lines = Column(Integer)
     deleted_lines = Column(Integer)
     commit_time = Column(DateTime, nullable=False)
+    parent_ids = Column(postgresql.ARRAY(String))
 
     author = relationship('Author', back_populates='commits')
 
