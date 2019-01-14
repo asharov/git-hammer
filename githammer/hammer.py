@@ -119,10 +119,11 @@ class Hammer:
         line_counts = add_count_dict(next_commit_stats, difference)
         return line_counts
 
-    def _add_author_alias_if_needed(self, author_line):
+    def _add_author_alias_if_needed(self, commit):
+        author_line = _author_line(commit)
         if not self.names_to_authors.get(author_line):
-            canonical_name = self.repository.git.check_mailmap(author_line)
-            author = self.names_to_authors.get(canonical_name)
+            canonical_name = self.repository.git.show(commit.hexsha, format='%aN <%aE>', no_patch=True)
+            author = self.names_to_authors[canonical_name]
             author.aliases.append(author_line)
             self.names_to_authors[author_line] = author
 
@@ -135,8 +136,8 @@ class Hammer:
                 session.add(author)
 
     def _add_commit_object(self, commit, session):
+        self._add_author_alias_if_needed(commit)
         author_line = _author_line(commit)
-        self._add_author_alias_if_needed(author_line)
         author = self.names_to_authors[author_line]
         commit_object = Commit(
             hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime, parent_ids=[])
