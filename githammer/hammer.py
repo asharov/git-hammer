@@ -1,19 +1,16 @@
 import datetime
-import errno
-import json
 import os
 import re
 from collections import deque
 from operator import itemgetter
 
-import git
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
 from globber import matches_glob
 from .countdict import add_count_dict, subtract_count_dict
-from .dbtypes import Author, Base, Commit, LineCount
+from .dbtypes import Author, Base, Commit, LineCount, Repository
 from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
@@ -26,6 +23,16 @@ def _matches_file_pattern(file, pattern):
         return any(_matches_file_pattern(file, p) for p in pattern)
     else:
         raise TypeError('Pattern {} not list or string'.format(pattern))
+
+
+def _is_source_file(configuration, path):
+    source_files = configuration.get('sourceFiles')
+    excluded_source_files = configuration.get('excludedSourceFiles')
+    is_included = source_files is None or _matches_file_pattern(
+        path, source_files)
+    is_excluded = excluded_source_files is not None and _matches_file_pattern(
+        path, excluded_source_files)
+    return is_included and not is_excluded
 
 
 def _print_line_counts(line_counts):
@@ -53,6 +60,11 @@ def _start_of_interval(dt, frequency):
 
 class Hammer:
 
+    def _build_repository_map(self, session):
+        self.repositories = {}
+        for dbrepo in session.query(Repository):
+            self.repositories[dbrepo.repository_path] = dbrepo
+
     def _build_author_map(self, session):
         self.names_to_authors = {}
         for dbauthor in session.query(Author):
@@ -67,33 +79,23 @@ class Hammer:
             for line_count in session.query(LineCount).filter_by(commit_id=dbcommit.hexsha):
                 dbcommit.line_counts[line_count.author] = line_count.line_count
 
-    def _is_source_file(self, path):
-        source_files = self.configuration.get('sourceFiles')
-        excluded_source_files = self.configuration.get('excludedSourceFiles')
-        is_included = source_files == None or _matches_file_pattern(
-            path, source_files)
-        is_excluded = excluded_source_files != None and _matches_file_pattern(
-            path, excluded_source_files)
-        return is_included and not is_excluded
-
-    def _blame_blob_into_line_counts(self, commit_to_blame, path, line_counts):
-        if not self._is_source_file(path):
+    def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts):
+        if not _is_source_file(repository.configuration, path):
             return
-        blame = self.repository.blame(commit_to_blame, path, w=True)
+        blame = repository.git_repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
             author = self.names_to_authors[_author_line(commit)]
             line_counts[author] = line_counts.get(author, 0) + len(lines)
 
-    def _make_full_commit_stats(self, commit):
+    def _make_full_commit_stats(self, repository, commit):
         line_counts = {}
         for object in commit.tree.traverse(visit_once=True):
             if object.type != 'blob':
                 continue
-            self._blame_blob_into_line_counts(
-                commit, object.path, line_counts)
+            self._blame_blob_into_line_counts(repository, commit, object.path, line_counts)
         return line_counts
 
-    def _make_diffed_commit_stats(self, current_commit, next_commit, next_commit_stats):
+    def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_stats):
         diff_index = next_commit.diff(current_commit)
         current_files = set()
         next_files = set()
@@ -110,39 +112,37 @@ class Hammer:
         next_line_counts = {}
         current_line_counts = {}
         for current_file in current_files:
-            self._blame_blob_into_line_counts(
-                current_commit, current_file, current_line_counts)
+            self._blame_blob_into_line_counts(repository, current_commit, current_file, current_line_counts)
         for next_file in next_files:
-            self._blame_blob_into_line_counts(
-                next_commit, next_file, next_line_counts)
+            self._blame_blob_into_line_counts(repository, next_commit, next_file, next_line_counts)
         difference = subtract_count_dict(current_line_counts, next_line_counts)
         line_counts = add_count_dict(next_commit_stats, difference)
         return line_counts
 
-    def _add_author_alias_if_needed(self, commit):
+    def _add_author_alias_if_needed(self, repository, commit):
         author_line = _author_line(commit)
         if not self.names_to_authors.get(author_line):
-            canonical_name = self.repository.git.show(commit.hexsha, format='%aN <%aE>', no_patch=True)
+            canonical_name = repository.git_repository.git.show(commit.hexsha, format='%aN <%aE>', no_patch=True)
             author = self.names_to_authors[canonical_name]
             author.aliases.append(author_line)
             self.names_to_authors[author_line] = author
 
-    def _add_canonical_authors(self, session):
-        author_lines = self.repository.git.log(format='%aN <%aE>')
+    def _add_canonical_authors(self, repository, session):
+        author_lines = repository.git_repository.git.log(format='%aN <%aE>')
         for author_line in set(author_lines.splitlines()):
             if not self.names_to_authors.get(author_line):
                 author = Author(canonical_name=author_line, aliases=[])
                 self.names_to_authors[author_line] = author
                 session.add(author)
 
-    def _add_commit_object(self, commit, session):
-        self._add_author_alias_if_needed(commit)
+    def _add_commit_object(self, repository, commit, session):
+        self._add_author_alias_if_needed(repository, commit)
         author_line = _author_line(commit)
         author = self.names_to_authors[author_line]
         commit_object = Commit(
             hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime, parent_ids=[])
         if len(commit.parents) == 1:
-            diff_stat = self.repository.git.diff(
+            diff_stat = repository.git_repository.git.diff(
                 commit.parents[0], commit, numstat=True)
             added_lines = 0
             deleted_lines = 0
@@ -151,7 +151,7 @@ class Hammer:
                 if match:
                     if match.group(1) == '-' or match.group(2) == '-':
                         continue
-                    if not self._is_source_file(match.group(3)):
+                    if not _is_source_file(repository.configuration, match.group(3)):
                         continue
                     added_lines += int(match.group(1))
                     deleted_lines += int(match.group(2))
@@ -167,71 +167,10 @@ class Hammer:
                 author_name=author.canonical_name, commit_id=commit.hexsha, line_count=count)
             session.add(line_count)
 
-    def __init__(self, repository_directory, name=None, configuration_file=None):
-        self.repository_directory = os.path.abspath(repository_directory)
-        if configuration_file == None:
-            configuration_file = os.path.join(
-                self.repository_directory, 'git-hammer-config.json')
-        try:
-            fp = open(configuration_file, 'r')
-        except OSError as error:
-            if error.errno == errno.ENOENT:
-                self.configuration = {}
-            else:
-                raise error
-        else:
-            self.configuration = json.load(fp)
-        self.repository = git.Repo(self.repository_directory)
-        database_name = 'git-hammer-' + \
-                        (name or os.path.basename(self.repository_directory))
-        engine = create_engine(
-            'postgresql://localhost/' + database_name, echo=True)
-        if not database_exists(engine.url):
-            create_database(engine.url)
-        Base.metadata.create_all(engine)
-        self.Session = sessionmaker(bind=engine)
-        session = self.Session()
-        self._build_author_map(session)
-        self._build_commit_map(session)
-        session.close()
-
-    def build(self):
-        session = self.Session(expire_on_commit=False)
-        start_time = datetime.datetime.now()
-        self._add_canonical_authors(session)
-        head = self.repository.head.commit
-        if self.shas_to_commits.get(head.hexsha):
-            _print_line_counts(self.shas_to_commits[head.hexsha].line_counts)
-            return
-        self._add_commit_object(head, session)
-        head_line_counts = self._make_full_commit_stats(head)
-        self._add_commit_line_counts(head, head_line_counts, session)
-        commits_to_process = deque([head])
-        commit_count = 1
-        print('Commit {:>5}: {}'.format(
-            commit_count, datetime.datetime.now() - start_time))
-        while commits_to_process:
-            current_commit = commits_to_process.popleft()
-            current_commit_stats = self.shas_to_commits[current_commit.hexsha].line_counts
-            for parent in current_commit.parents:
-                if not self.shas_to_commits.get(parent.hexsha):
-                    self._add_commit_object(parent, session)
-                    parent_line_counts = self._make_diffed_commit_stats(
-                        parent, current_commit, current_commit_stats)
-                    self._add_commit_line_counts(
-                        parent, parent_line_counts, session)
-                    commits_to_process.append(parent)
-                    commit_count += 1
-                    if commit_count % 20 == 0:
-                        print('Commit {:>5}: {}'.format(
-                            commit_count, datetime.datetime.now() - start_time))
-                self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
-        session.commit()
-        _print_line_counts(self.shas_to_commits[head.hexsha].line_counts)
-
     def _iter_branch(self, branch_name=None):
         commits = []
-        branch = self.repository.branches[branch_name] if branch_name else self.repository.head
+        repository = next(iter(self.repositories.values()))
+        branch = repository.git_repository.branches[branch_name] if branch_name else repository.git_repository.head
         commit_id = branch.commit.hexsha
         while commit_id:
             commit = self.shas_to_commits.get(commit_id)
@@ -241,6 +180,67 @@ class Hammer:
             else:
                 break
         return reversed(commits).__iter__()
+
+    def __init__(self, project_name, database_server_url='postgresql://localhost/'):
+        database_name = 'git-hammer-' + project_name
+        engine = create_engine(database_server_url + database_name, echo=True)
+        if not database_exists(engine.url):
+            create_database(engine.url)
+            Base.metadata.create_all(engine)
+        self.Session = sessionmaker(bind=engine)
+        session = self.Session()
+        self._build_repository_map(session)
+        self._build_author_map(session)
+        self._build_commit_map(session)
+        session.close()
+
+    def add_repository(self, repository_path, configuration_file_path=None):
+        repository_path = os.path.abspath(repository_path)
+        if not self.repositories.get(repository_path):
+            if not configuration_file_path:
+                configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
+            else:
+                configuration_file_path = os.path.abspath(configuration_file_path)
+            session = self.Session(expire_on_commit=False)
+            dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
+            self.repositories[repository_path] = dbrepo
+            session.add(dbrepo)
+            session.commit()
+
+    def update_data(self):
+        session = self.Session(expire_on_commit=False)
+        for repository in self.repositories.values():
+            print('Repository {}'.format(repository.repository_path))
+            head_commit = repository.git_repository.head.commit
+            if self.shas_to_commits.get(head_commit.hexsha):
+                continue
+            start_time = datetime.datetime.now()
+            self._add_canonical_authors(repository, session)
+            self._add_commit_object(repository, head_commit, session)
+            head_line_counts = self._make_full_commit_stats(repository, head_commit)
+            self._add_commit_line_counts(head_commit, head_line_counts, session)
+            commits_to_process = deque([head_commit])
+            commit_count = 1
+            print('Commit {:>5}: {}'.format(
+                commit_count, datetime.datetime.now() - start_time))
+            while commits_to_process:
+                current_commit = commits_to_process.popleft()
+                current_commit_stats = self.shas_to_commits[current_commit.hexsha].line_counts
+                for parent in current_commit.parents:
+                    if not self.shas_to_commits.get(parent.hexsha):
+                        self._add_commit_object(repository, parent, session)
+                        parent_line_counts = self._make_diffed_commit_stats(repository, parent, current_commit,
+                                                                            current_commit_stats)
+                        self._add_commit_line_counts(
+                            parent, parent_line_counts, session)
+                        commits_to_process.append(parent)
+                        commit_count += 1
+                        if commit_count % 20 == 0:
+                            print('Commit {:>5}: {}'.format(
+                                commit_count, datetime.datetime.now() - start_time))
+                    self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
+            _print_line_counts(self.shas_to_commits[head_commit.hexsha].line_counts)
+        session.commit()
 
     def iter_authors(self):
         return set(self.names_to_authors.values()).__iter__()

@@ -1,11 +1,41 @@
+import errno
+import json
 import re
 
+import git
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, orm
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 Base = declarative_base()
+
+
+class Repository(Base):
+    __tablename__ = 'repositories'
+
+    repository_path = Column(String, primary_key=True)
+    configuration_file_path = Column(String)
+
+    def __init__(self, **kwargs):
+        super(Repository, self).__init__(**kwargs)
+        self._init_properties()
+
+    @orm.reconstructor
+    def _init_properties(self):
+        if self.configuration_file_path:
+            try:
+                fp = open(self.configuration_file_path, 'r')
+            except OSError as error:
+                if error.errno == errno.ENOENT:
+                    self.configuration = {}
+                else:
+                    raise error
+            else:
+                self.configuration = json.load(fp)
+        else:
+            self.configuration = {}
+        self.git_repository = git.Repo(self.repository_path)
 
 
 class Author(Base):
@@ -41,10 +71,10 @@ class Commit(Base):
 
     def __init__(self, **kwargs):
         super(Commit, self).__init__(**kwargs)
-        self.init_properties()
+        self._init_properties()
 
     @orm.reconstructor
-    def init_properties(self):
+    def _init_properties(self):
         self.line_counts = {}
 
 
