@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
 from globber import matches_glob
+from .combinedcommit import _iter_combined_commits
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, LineCount, Repository
 from .frequency import Frequency
@@ -167,11 +168,9 @@ class Hammer:
                 author_name=author.canonical_name, commit_id=commit.hexsha, line_count=count)
             session.add(line_count)
 
-    def _iter_branch(self, branch_name=None):
+    def _iter_branch(self, repository):
         commits = []
-        repository = next(iter(self.repositories.values()))
-        branch = repository.git_repository.branches[branch_name] if branch_name else repository.git_repository.head
-        commit_id = branch.commit.hexsha
+        commit_id = repository.git_repository.head.commit.hexsha
         while commit_id:
             commit = self.shas_to_commits.get(commit_id)
             if commit:
@@ -246,13 +245,14 @@ class Hammer:
         return set(self.names_to_authors.values()).__iter__()
 
     def iter_commits(self, **kwargs):
-        branch_iterator = self._iter_branch(kwargs.get('branch_name'))
+        iterators = [self._iter_branch(repository) for repository in self.repositories.values()]
+        commit_iterator = _iter_combined_commits(iterators)
         if not kwargs.get('frequency'):
-            for commit in branch_iterator:
+            for commit in commit_iterator:
                 yield commit
         else:
             next_commit_time = None
-            for commit in branch_iterator:
+            for commit in commit_iterator:
                 if not next_commit_time or commit.commit_time >= next_commit_time:
                     yield commit
                     start = _start_of_interval(commit.commit_time, kwargs['frequency'])

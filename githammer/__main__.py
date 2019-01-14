@@ -24,6 +24,7 @@ def add_repository(options):
 
 def plot_line_counts_per_author(options):
     hammer = Hammer(options.project)
+    hammer.update_data()
     lines_per_author(hammer)
 
 
