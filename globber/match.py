@@ -17,6 +17,6 @@ def _glob_to_regex(glob):
     return regex + '$'
 
 
-def matches_glob(glob, str):
+def matches_glob(glob, string):
     regex = _glob_to_regex(glob)
-    return re.search(regex, str) != None
+    return re.search(regex, string) is not None

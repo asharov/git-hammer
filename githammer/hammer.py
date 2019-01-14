@@ -89,10 +89,10 @@ class Hammer:
 
     def _make_full_commit_stats(self, repository, commit):
         line_counts = {}
-        for object in commit.tree.traverse(visit_once=True):
-            if object.type != 'blob':
+        for git_object in commit.tree.traverse(visit_once=True):
+            if git_object.type != 'blob':
                 continue
-            self._blame_blob_into_line_counts(repository, commit, object.path, line_counts)
+            self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts)
         return line_counts
 
     def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_stats):

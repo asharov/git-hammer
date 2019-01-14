@@ -1,5 +1,5 @@
-def _normalize_count_dict(dict):
-    return {key: value for key, value in dict.items() if value != 0}
+def _normalize_count_dict(count_dict):
+    return {key: value for key, value in count_dict.items() if value != 0}
 
 
 def subtract_count_dict(base_dict, dict_to_subtract):
