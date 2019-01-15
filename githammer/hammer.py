@@ -77,8 +77,9 @@ class Hammer:
         self.shas_to_commits = {}
         for dbcommit in session.query(Commit):
             self.shas_to_commits[dbcommit.hexsha] = dbcommit
-            for line_count in session.query(LineCount).filter_by(commit_id=dbcommit.hexsha):
-                dbcommit.line_counts[line_count.author] = line_count.line_count
+        for db_line_count in session.query(LineCount):
+            self.shas_to_commits[db_line_count.commit_id].line_counts[
+                db_line_count.author] = db_line_count.line_count
 
     def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts):
         if not _is_source_file(repository.configuration, path):
@@ -180,9 +181,10 @@ class Hammer:
                 break
         return reversed(commits).__iter__()
 
-    def __init__(self, project_name, database_server_url='postgresql://localhost/'):
+    def __init__(self, project_name, database_server_url='postgresql+psycopg2://localhost/'):
+        start_time = datetime.datetime.now()
         database_name = 'git-hammer-' + project_name
-        engine = create_engine(database_server_url + database_name, echo=True)
+        engine = create_engine(database_server_url + database_name, use_batch_mode=True)
         if not database_exists(engine.url):
             create_database(engine.url)
             Base.metadata.create_all(engine)
@@ -192,6 +194,7 @@ class Hammer:
         self._build_author_map(session)
         self._build_commit_map(session)
         session.close()
+        print('Init time {}'.format(datetime.datetime.now() - start_time))
 
     def add_repository(self, repository_path, configuration_file_path=None):
         repository_path = os.path.abspath(repository_path)
@@ -239,7 +242,9 @@ class Hammer:
                                 commit_count, datetime.datetime.now() - start_time))
                     self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
             _print_line_counts(self.shas_to_commits[head_commit.hexsha].line_counts)
+        start_time = datetime.datetime.now()
         session.commit()
+        print('Database commit time {}'.format(datetime.datetime.now() - start_time))
 
     def iter_authors(self):
         return set(self.names_to_authors.values()).__iter__()

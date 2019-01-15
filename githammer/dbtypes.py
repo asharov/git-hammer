@@ -84,9 +84,8 @@ Author.commits = relationship('Commit', order_by=Commit.commit_time, back_popula
 class LineCount(Base):
     __tablename__ = 'linecounts'
 
-    id = Column(Integer, primary_key=True)
-    author_name = Column(String, ForeignKey('authors.canonical_name'), nullable=False)
-    commit_id = Column(String, ForeignKey('commits.hexsha'), nullable=False)
+    author_name = Column(String, ForeignKey('authors.canonical_name'), primary_key=True)
+    commit_id = Column(String, ForeignKey('commits.hexsha'), primary_key=True)
     line_count = Column(Integer, nullable=False)
 
     author = relationship('Author')
