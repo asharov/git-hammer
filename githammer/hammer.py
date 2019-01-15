@@ -143,9 +143,12 @@ class Hammer:
         author = self.names_to_authors[author_line]
         commit_object = Commit(
             hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime, parent_ids=[])
-        if len(commit.parents) == 1:
-            diff_stat = repository.git_repository.git.diff(
-                commit.parents[0], commit, numstat=True)
+        if len(commit.parents) <= 1:
+            if len(commit.parents) == 1:
+                diff_stat = repository.git_repository.git.diff(
+                    commit.parents[0], commit, numstat=True)
+            else:
+                diff_stat = repository.git_repository.git.show(commit, numstat=True, format='')
             added_lines = 0
             deleted_lines = 0
             for line in diff_stat.splitlines():
