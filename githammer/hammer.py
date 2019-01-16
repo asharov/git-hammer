@@ -174,7 +174,7 @@ class Hammer:
 
     def _iter_branch(self, repository):
         commits = []
-        commit_id = repository.git_repository.head.commit.hexsha
+        commit_id = repository.head_commit_id
         while commit_id:
             commit = self.shas_to_commits.get(commit_id)
             if commit:
@@ -219,11 +219,13 @@ class Hammer:
             head_commit = repository.git_repository.head.commit
             if self.shas_to_commits.get(head_commit.hexsha):
                 continue
+            repository = session.merge(repository, load=False)
             start_time = datetime.datetime.now()
             self._add_canonical_authors(repository, session)
             self._add_commit_object(repository, head_commit, session)
             head_line_counts = self._make_full_commit_stats(repository, head_commit)
             self._add_commit_line_counts(head_commit, head_line_counts, session)
+            repository.head_commit_id = head_commit.hexsha
             commits_to_process = deque([head_commit])
             commit_count = 1
             print('Commit {:>5}: {}'.format(

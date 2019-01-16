@@ -16,6 +16,9 @@ class Repository(Base):
 
     repository_path = Column(String, primary_key=True)
     configuration_file_path = Column(String)
+    head_commit_id = Column(String, ForeignKey('commits.hexsha'))
+
+    head_commit = relationship('Commit')
 
     def __init__(self, **kwargs):
         super(Repository, self).__init__(**kwargs)
