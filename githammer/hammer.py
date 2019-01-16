@@ -98,7 +98,7 @@ class Hammer:
         return line_counts
 
     def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_stats):
-        diff_index = next_commit.diff(current_commit)
+        diff_index = next_commit.diff(current_commit, w=True)
         current_files = set()
         next_files = set()
         for add_diff in diff_index.iter_change_type('A'):
@@ -231,19 +231,20 @@ class Hammer:
             while commits_to_process:
                 current_commit = commits_to_process.popleft()
                 current_commit_stats = self.shas_to_commits[current_commit.hexsha].line_counts
-                for parent in current_commit.parents:
+                for parent in reversed(current_commit.parents):
                     if not self.shas_to_commits.get(parent.hexsha):
                         self._add_commit_object(repository, parent, session)
                         parent_line_counts = self._make_diffed_commit_stats(repository, parent, current_commit,
                                                                             current_commit_stats)
                         self._add_commit_line_counts(
                             parent, parent_line_counts, session)
-                        commits_to_process.append(parent)
+                        commits_to_process.appendleft(parent)
                         commit_count += 1
                         if commit_count % 20 == 0:
                             print('Commit {:>5}: {}'.format(
                                 commit_count, datetime.datetime.now() - start_time))
                     self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
+            print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
             _print_line_counts(self.shas_to_commits[head_commit.hexsha].line_counts)
         start_time = datetime.datetime.now()
         session.commit()
