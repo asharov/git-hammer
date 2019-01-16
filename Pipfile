@@ -12,6 +12,7 @@ sqlalchemy-utils = "*"
 matplotlib = "*"
 python-dateutil = "*"
 psycopg2-binary = "*"
+globber = "*"
 
 [requires]
 python_version = "3.7"

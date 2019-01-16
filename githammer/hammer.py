@@ -4,11 +4,11 @@ import re
 from collections import deque
 from operator import itemgetter
 
+from globber import globber
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
-from globber import matches_glob
 from .combinedcommit import _iter_combined_commits
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, LineCount, Repository
@@ -19,7 +19,7 @@ _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 
 def _matches_file_pattern(file, pattern):
     if type(pattern) is str:
-        return matches_glob(pattern, file)
+        return globber.match(pattern, file)
     elif type(pattern) is list:
         return any(_matches_file_pattern(file, p) for p in pattern)
     else:
