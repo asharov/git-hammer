@@ -11,7 +11,7 @@ from sqlalchemy_utils import create_database, database_exists
 
 from .combinedcommit import _iter_combined_commits
 from .countdict import add_count_dict, subtract_count_dict
-from .dbtypes import Author, Base, Commit, LineCount, Repository
+from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository
 from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
@@ -34,6 +34,11 @@ def _is_source_file(configuration, path):
     is_excluded = excluded_source_files is not None and _matches_file_pattern(
         path, excluded_source_files)
     return is_included and not is_excluded
+
+
+def _is_test_file(configuration, path):
+    test_files = configuration.get('testFiles')
+    return test_files is not None and _matches_file_pattern(path, test_files)
 
 
 def _print_line_counts(line_counts):
@@ -77,27 +82,35 @@ class Hammer:
         self.shas_to_commits = {}
         for dbcommit in session.query(Commit):
             self.shas_to_commits[dbcommit.hexsha] = dbcommit
-        for db_line_count in session.query(LineCount):
-            self.shas_to_commits[db_line_count.commit_id].line_counts[
-                db_line_count.author] = db_line_count.line_count
+        for db_detail in session.query(AuthorCommitDetail):
+            self.shas_to_commits[db_detail.commit_id].line_counts[db_detail.author] = db_detail.line_count
+            if db_detail.test_count:
+                self.shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
 
-    def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts):
+    def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts, test_counts):
         if not _is_source_file(repository.configuration, path):
             return
+        is_test_file = _is_test_file(repository.configuration, path)
         blame = repository.git_repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
             author = self.names_to_authors[_author_line(commit)]
             line_counts[author] = line_counts.get(author, 0) + len(lines)
+            if is_test_file:
+                for line in lines:
+                    if re.search(repository.test_line_regex, line):
+                        test_counts[author] = test_counts.get(author, 0) + 1
 
     def _make_full_commit_stats(self, repository, commit):
         line_counts = {}
+        test_counts = {}
         for git_object in commit.tree.traverse(visit_once=True):
             if git_object.type != 'blob':
                 continue
-            self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts)
-        return line_counts
+            self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts, test_counts)
+        return line_counts, test_counts
 
-    def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_stats):
+    def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_line_counts,
+                                  next_commit_test_counts):
         diff_index = next_commit.diff(current_commit, w=True)
         current_files = set()
         next_files = set()
@@ -113,13 +126,18 @@ class Hammer:
             next_files.add(modify_diff.a_path)
         next_line_counts = {}
         current_line_counts = {}
+        next_test_counts = {}
+        current_test_counts = {}
         for current_file in current_files:
-            self._blame_blob_into_line_counts(repository, current_commit, current_file, current_line_counts)
+            self._blame_blob_into_line_counts(repository, current_commit, current_file, current_line_counts,
+                                              current_test_counts)
         for next_file in next_files:
-            self._blame_blob_into_line_counts(repository, next_commit, next_file, next_line_counts)
-        difference = subtract_count_dict(current_line_counts, next_line_counts)
-        line_counts = add_count_dict(next_commit_stats, difference)
-        return line_counts
+            self._blame_blob_into_line_counts(repository, next_commit, next_file, next_line_counts, next_test_counts)
+        line_difference = subtract_count_dict(current_line_counts, next_line_counts)
+        line_counts = add_count_dict(next_commit_line_counts, line_difference)
+        test_difference = subtract_count_dict(current_test_counts, next_test_counts)
+        test_counts = add_count_dict(next_commit_test_counts, test_difference)
+        return line_counts, test_counts
 
     def _add_author_alias_if_needed(self, repository, commit):
         author_line = _author_line(commit)
@@ -165,12 +183,15 @@ class Hammer:
         self.shas_to_commits[commit.hexsha] = commit_object
         session.add(commit_object)
 
-    def _add_commit_line_counts(self, commit, line_counts, session):
+    def _add_commit_line_counts(self, commit, line_counts, test_counts, session):
         self.shas_to_commits[commit.hexsha].line_counts = line_counts
+        self.shas_to_commits[commit.hexsha].test_counts = test_counts
         for author, count in line_counts.items():
-            line_count = LineCount(
+            detail = AuthorCommitDetail(
                 author_name=author.canonical_name, commit_id=commit.hexsha, line_count=count)
-            session.add(line_count)
+            if test_counts.get(author):
+                detail.test_count = test_counts[author]
+            session.add(detail)
 
     def _iter_branch(self, repository):
         commits = []
@@ -223,8 +244,8 @@ class Hammer:
             start_time = datetime.datetime.now()
             self._add_canonical_authors(repository, session)
             self._add_commit_object(repository, head_commit, session)
-            head_line_counts = self._make_full_commit_stats(repository, head_commit)
-            self._add_commit_line_counts(head_commit, head_line_counts, session)
+            (head_line_counts, head_test_counts) = self._make_full_commit_stats(repository, head_commit)
+            self._add_commit_line_counts(head_commit, head_line_counts, head_test_counts, session)
             repository.head_commit_id = head_commit.hexsha
             commits_to_process = deque([head_commit])
             commit_count = 1
@@ -232,14 +253,15 @@ class Hammer:
                 commit_count, datetime.datetime.now() - start_time))
             while commits_to_process:
                 current_commit = commits_to_process.popleft()
-                current_commit_stats = self.shas_to_commits[current_commit.hexsha].line_counts
+                current_commit_line_counts = self.shas_to_commits[current_commit.hexsha].line_counts
+                current_commit_test_counts = self.shas_to_commits[current_commit.hexsha].test_counts
                 for parent in reversed(current_commit.parents):
                     if not self.shas_to_commits.get(parent.hexsha):
                         self._add_commit_object(repository, parent, session)
-                        parent_line_counts = self._make_diffed_commit_stats(repository, parent, current_commit,
-                                                                            current_commit_stats)
+                        parent_line_counts, parent_test_counts = self._make_diffed_commit_stats(
+                            repository, parent, current_commit, current_commit_line_counts, current_commit_test_counts)
                         self._add_commit_line_counts(
-                            parent, parent_line_counts, session)
+                            parent, parent_line_counts, parent_test_counts, session)
                         commits_to_process.appendleft(parent)
                         commit_count += 1
                         if commit_count % 20 == 0:

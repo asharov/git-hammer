@@ -38,6 +38,8 @@ class CombinedCommit:
         actual_commits = [commit for commit in commits if commit is not None]
         self.commit_time = max(map(attrgetter('commit_time'), actual_commits))
         self.line_counts = {}
+        self.test_counts = {}
         for commit in commits:
             if commit is not None:
                 self.line_counts = add_count_dict(self.line_counts, commit.line_counts)
+                self.test_counts = add_count_dict(self.test_counts, commit.test_counts)

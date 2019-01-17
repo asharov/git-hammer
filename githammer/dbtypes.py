@@ -38,6 +38,9 @@ class Repository(Base):
                 self.configuration = json.load(fp)
         else:
             self.configuration = {}
+        test_line_regex = self.configuration.get('testLineRegex')
+        if test_line_regex:
+            self.test_line_regex = re.compile(test_line_regex)
         self.git_repository = git.Repo(self.repository_path)
 
 
@@ -79,17 +82,19 @@ class Commit(Base):
     @orm.reconstructor
     def _init_properties(self):
         self.line_counts = {}
+        self.test_counts = {}
 
 
 Author.commits = relationship('Commit', order_by=Commit.commit_time, back_populates='author')
 
 
-class LineCount(Base):
-    __tablename__ = 'linecounts'
+class AuthorCommitDetail(Base):
+    __tablename__ = 'authorcommit'
 
     author_name = Column(String, ForeignKey('authors.canonical_name'), primary_key=True)
     commit_id = Column(String, ForeignKey('commits.hexsha'), primary_key=True)
     line_count = Column(Integer, nullable=False)
+    test_count = Column(Integer)
 
     author = relationship('Author')
     commit = relationship('Commit')
