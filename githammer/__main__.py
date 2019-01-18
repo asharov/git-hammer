@@ -1,6 +1,6 @@
 import argparse
 
-from .graph import lines_per_author
+from .graph import *
 from .hammer import Hammer
 
 
@@ -22,9 +22,20 @@ def add_repository(options):
     hammer.update_data()
 
 
-def plot_line_counts_per_author(options):
+def plot_graph(options):
     hammer = Hammer(options.project)
-    lines_per_author(hammer)
+    if options.type == 'line-count':
+        total_lines(hammer)
+    elif options.type == 'line-author-count':
+        lines_per_author(hammer)
+    elif options.type == 'test-count':
+        total_tests(hammer)
+    elif options.type == 'test-author-count':
+        tests_per_author(hammer)
+    elif options.type == 'day-of-week':
+        commits_per_weekday(hammer)
+    elif options.type == 'time-of-day':
+        commits_per_hour(hammer)
 
 
 parser = argparse.ArgumentParser(prog='githammer',
@@ -49,7 +60,10 @@ add_parser.set_defaults(func=add_repository)
 
 graph_parser = command_parsers.add_parser('graph', help='Draw line count per committer graph')
 graph_parser.add_argument('project', help='Name of the project to graph')
-graph_parser.set_defaults(func=plot_line_counts_per_author)
+graph_parser.add_argument('type', help='The type of graph to make',
+                          choices=['line-count', 'line-author-count', 'test-count', 'test-author-count', 'day-of-week',
+                                   'time-of-day'])
+graph_parser.set_defaults(func=plot_graph)
 
 parsed_args = parser.parse_args()
 parsed_args.func(parsed_args)

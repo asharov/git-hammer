@@ -290,3 +290,9 @@ class Hammer:
                     yield commit
                     start = _start_of_interval(commit.commit_time, kwargs['frequency'])
                     next_commit_time = kwargs['frequency'].next_instance(start)
+
+    def iter_individual_commits(self):
+        session = self.Session()
+        for commit in session.query(Commit).order_by(Commit.commit_time):
+            yield commit
+        session.close()
