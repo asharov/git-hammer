@@ -1,7 +1,6 @@
 import datetime
 import os
 import re
-from collections import deque
 from operator import itemgetter
 
 from globber import globber
@@ -109,34 +108,35 @@ class Hammer:
             self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts, test_counts)
         return line_counts, test_counts
 
-    def _make_diffed_commit_stats(self, repository, current_commit, next_commit, next_commit_line_counts,
-                                  next_commit_test_counts):
-        diff_index = next_commit.diff(current_commit, w=True)
+    def _make_diffed_commit_stats(self, repository, commit, previous_commit, previous_commit_line_counts,
+                                  previous_commit_test_counts):
+        diff_index = previous_commit.diff(commit, w=True)
         current_files = set()
-        next_files = set()
+        previous_files = set()
         for add_diff in diff_index.iter_change_type('A'):
             current_files.add(add_diff.b_path)
         for delete_diff in diff_index.iter_change_type('D'):
-            next_files.add(delete_diff.a_path)
+            previous_files.add(delete_diff.a_path)
         for rename_diff in diff_index.iter_change_type('R'):
             current_files.add(rename_diff.b_path)
-            next_files.add(rename_diff.a_path)
+            previous_files.add(rename_diff.a_path)
         for modify_diff in diff_index.iter_change_type('M'):
             current_files.add(modify_diff.b_path)
-            next_files.add(modify_diff.a_path)
-        next_line_counts = {}
+            previous_files.add(modify_diff.a_path)
+        previous_line_counts = {}
         current_line_counts = {}
-        next_test_counts = {}
+        previous_test_counts = {}
         current_test_counts = {}
         for current_file in current_files:
-            self._blame_blob_into_line_counts(repository, current_commit, current_file, current_line_counts,
+            self._blame_blob_into_line_counts(repository, commit, current_file, current_line_counts,
                                               current_test_counts)
-        for next_file in next_files:
-            self._blame_blob_into_line_counts(repository, next_commit, next_file, next_line_counts, next_test_counts)
-        line_difference = subtract_count_dict(current_line_counts, next_line_counts)
-        line_counts = add_count_dict(next_commit_line_counts, line_difference)
-        test_difference = subtract_count_dict(current_test_counts, next_test_counts)
-        test_counts = add_count_dict(next_commit_test_counts, test_difference)
+        for previous_file in previous_files:
+            self._blame_blob_into_line_counts(repository, previous_commit, previous_file, previous_line_counts,
+                                              previous_test_counts)
+        line_difference = subtract_count_dict(current_line_counts, previous_line_counts)
+        line_counts = add_count_dict(previous_commit_line_counts, line_difference)
+        test_difference = subtract_count_dict(current_test_counts, previous_test_counts)
+        test_counts = add_count_dict(previous_commit_test_counts, test_difference)
         return line_counts, test_counts
 
     def _add_author_alias_if_needed(self, repository, commit):
@@ -205,6 +205,11 @@ class Hammer:
                 break
         return reversed(commits).__iter__()
 
+    def _iter_unprocessed_commits(self, repository):
+        for commit_id in repository.git_repository.git.log(reverse=True, date_order=True, format='%H').splitlines():
+            if not self.shas_to_commits.get(commit_id):
+                yield repository.git_repository.commit(commit_id)
+
     def __init__(self, project_name, database_server_url='postgresql+psycopg2://localhost/'):
         start_time = datetime.datetime.now()
         database_name = 'git-hammer-' + project_name
@@ -237,39 +242,33 @@ class Hammer:
         session = self.Session(expire_on_commit=False)
         for repository in self.repositories.values():
             print('Repository {}'.format(repository.repository_path))
-            head_commit = repository.git_repository.head.commit
-            if self.shas_to_commits.get(head_commit.hexsha):
-                continue
             repository = session.merge(repository, load=False)
             start_time = datetime.datetime.now()
             self._add_canonical_authors(repository, session)
-            self._add_commit_object(repository, head_commit, session)
-            (head_line_counts, head_test_counts) = self._make_full_commit_stats(repository, head_commit)
-            self._add_commit_line_counts(head_commit, head_line_counts, head_test_counts, session)
-            repository.head_commit_id = head_commit.hexsha
-            commits_to_process = deque([head_commit])
-            commit_count = 1
-            print('Commit {:>5}: {}'.format(
-                commit_count, datetime.datetime.now() - start_time))
-            while commits_to_process:
-                current_commit = commits_to_process.popleft()
-                current_commit_line_counts = self.shas_to_commits[current_commit.hexsha].line_counts
-                current_commit_test_counts = self.shas_to_commits[current_commit.hexsha].test_counts
-                for parent in reversed(current_commit.parents):
-                    if not self.shas_to_commits.get(parent.hexsha):
-                        self._add_commit_object(repository, parent, session)
-                        parent_line_counts, parent_test_counts = self._make_diffed_commit_stats(
-                            repository, parent, current_commit, current_commit_line_counts, current_commit_test_counts)
-                        self._add_commit_line_counts(
-                            parent, parent_line_counts, parent_test_counts, session)
-                        commits_to_process.appendleft(parent)
-                        commit_count += 1
-                        if commit_count % 20 == 0:
-                            print('Commit {:>5}: {}'.format(
-                                commit_count, datetime.datetime.now() - start_time))
-                    self.shas_to_commits[current_commit.hexsha].parent_ids.append(parent.hexsha)
+            commit_count = 0
+            head_commit_id = None
+            for commit in self._iter_unprocessed_commits(repository):
+                self._add_commit_object(repository, commit, session)
+                if commit.parents:
+                    for parent in commit.parents:
+                        self.shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
+                    parent_commit = self.shas_to_commits[commit.parents[0].hexsha]
+                    line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
+                                                                              parent_commit.line_counts,
+                                                                              parent_commit.test_counts)
+                else:
+                    full_stats_start_time = datetime.datetime.now()
+                    line_counts, test_counts = self._make_full_commit_stats(repository, commit)
+                    print('Commit {} stats time: {}'.format(commit.hexsha,
+                                                            datetime.datetime.now() - full_stats_start_time))
+                self._add_commit_line_counts(commit, line_counts, test_counts, session)
+                head_commit_id = commit.hexsha
+                commit_count += 1
+                if commit_count % 20 == 0:
+                    print('Commit {:>5}: {}'.format(commit_count, datetime.datetime.now() - start_time))
             print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
-            _print_line_counts(self.shas_to_commits[head_commit.hexsha].line_counts)
+            if head_commit_id:
+                repository.head_commit_id = head_commit_id
         start_time = datetime.datetime.now()
         session.commit()
         print('Database commit time {}'.format(datetime.datetime.now() - start_time))
