@@ -244,6 +244,7 @@ class Hammer:
             print('Repository {}'.format(repository.repository_path))
             repository = session.merge(repository, load=False)
             start_time = datetime.datetime.now()
+            last_session_commit_time = start_time
             self._add_canonical_authors(repository, session)
             commit_count = 0
             head_commit_id = None
@@ -266,6 +267,12 @@ class Hammer:
                 commit_count += 1
                 if commit_count % 20 == 0:
                     print('Commit {:>5}: {}'.format(commit_count, datetime.datetime.now() - start_time))
+                if datetime.datetime.now() - last_session_commit_time >= datetime.timedelta(minutes=5):
+                    session_commit_start_time = datetime.datetime.now()
+                    session.commit()
+                    print('Commit {:>5}: Database commit time {}'.format(commit_count,
+                                                                         datetime.datetime.now() - session_commit_start_time))
+                    last_session_commit_time = datetime.datetime.now()
             print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
             if head_commit_id:
                 repository.head_commit_id = head_commit_id
