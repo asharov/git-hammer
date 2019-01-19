@@ -248,7 +248,6 @@ class Hammer:
             last_session_commit_time = start_time
             self._add_canonical_authors(repository, session)
             commit_count = 0
-            head_commit_id = None
             for commit in self._iter_unprocessed_commits(repository):
                 self._add_commit_object(repository, commit, session)
                 if commit.parents:
@@ -264,7 +263,7 @@ class Hammer:
                     print('Commit {} stats time: {}'.format(commit.hexsha,
                                                             datetime.datetime.now() - full_stats_start_time))
                 self._add_commit_line_counts(commit, line_counts, test_counts, session)
-                head_commit_id = commit.hexsha
+                repository.head_commit_id = commit.hexsha
                 commit_count += 1
                 if commit_count % 20 == 0:
                     print('Commit {:>5}: {}'.format(commit_count, datetime.datetime.now() - start_time))
@@ -275,8 +274,6 @@ class Hammer:
                                                                          datetime.datetime.now() - session_commit_start_time))
                     last_session_commit_time = datetime.datetime.now()
             print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
-            if head_commit_id:
-                repository.head_commit_id = head_commit_id
         start_time = datetime.datetime.now()
         session.commit()
         print('Database commit time {}'.format(datetime.datetime.now() - start_time))
