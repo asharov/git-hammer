@@ -1,29 +1,38 @@
 import argparse
+import os
 
 from .hammer import Hammer
 from .summary import *
 
 
+def make_hammer(project):
+    server_url = os.environ.get('DATABASE_SERVER_URL')
+    if server_url:
+        return Hammer(project, database_server_url=server_url)
+    else:
+        return Hammer(project)
+
+
 def init_project(options):
-    hammer = Hammer(options.project)
+    hammer = make_hammer(options.project)
     if options.repository:
         hammer.add_repository(options.repository, options.configuration)
         hammer.update_data()
 
 
 def update_project(options):
-    hammer = Hammer(options.project)
+    hammer = make_hammer(options.project)
     hammer.update_data()
 
 
 def add_repository(options):
-    hammer = Hammer(options.project)
+    hammer = make_hammer(options.project)
     hammer.add_repository(options.repository, options.configuration)
     hammer.update_data()
 
 
 def plot_graph(options):
-    hammer = Hammer(options.project)
+    hammer = make_hammer(options.project)
     if options.type == 'line-count':
         total_lines(hammer)
     elif options.type == 'line-author-count':
@@ -39,7 +48,7 @@ def plot_graph(options):
 
 
 def print_summary(options):
-    hammer = Hammer(options.project)
+    hammer = make_hammer(options.project)
     commit_count_table(hammer)
     print()
     line_count_table(hammer)
