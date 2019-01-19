@@ -1,11 +1,8 @@
-import matplotlib
+from operator import attrgetter
 
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as mpplot
 
 from githammer import Frequency
-
-from operator import attrgetter
 
 
 class NoDataForGraphError(Exception):
@@ -87,5 +84,6 @@ def commits_per_weekday(hammer):
     plot = figure.add_subplot(111)
     plot.bar(range(len(count_array)), count_array)
     figure.tight_layout()
-    mpplot.xticks(range(len(count_array)), ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+    mpplot.xticks(range(len(count_array)),
+                  ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     mpplot.show()
