@@ -46,7 +46,7 @@ def _print_line_counts(line_counts):
 
 
 def _author_line(commit):
-    return f"{commit.author.name} <{commit.author.email}>"
+    return '{} <{}>'.format(commit.author.name, commit.author.email)
 
 
 def _start_of_interval(dt, frequency):
