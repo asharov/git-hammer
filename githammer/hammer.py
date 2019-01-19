@@ -159,8 +159,9 @@ class Hammer:
         self._add_author_alias_if_needed(repository, commit)
         author_line = _author_line(commit)
         author = self.names_to_authors[author_line]
-        commit_object = Commit(
-            hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime, parent_ids=[])
+        commit_object = Commit(hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime,
+                               commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
+                               parent_ids=[])
         if len(commit.parents) <= 1:
             if len(commit.parents) == 1:
                 diff_stat = repository.git_repository.git.diff(

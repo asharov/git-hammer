@@ -71,7 +71,7 @@ def tests_per_author(hammer):
 def commits_per_hour(hammer):
     count_array = [0] * 24
     for commit in hammer.iter_individual_commits():
-        count_array[commit.commit_time.hour] += 1
+        count_array[commit.commit_time_tz().hour] += 1
     figure = mpplot.figure()
     plot = figure.add_subplot(111)
     plot.bar(range(len(count_array)), count_array)
@@ -82,7 +82,7 @@ def commits_per_hour(hammer):
 def commits_per_weekday(hammer):
     count_array = [0] * 7
     for commit in hammer.iter_individual_commits():
-        count_array[commit.commit_time.weekday()] += 1
+        count_array[commit.commit_time_tz().weekday()] += 1
     figure = mpplot.figure()
     plot = figure.add_subplot(111)
     plot.bar(range(len(count_array)), count_array)

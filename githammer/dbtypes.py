@@ -1,3 +1,4 @@
+import datetime
 import errno
 import json
 import re
@@ -71,6 +72,7 @@ class Commit(Base):
     added_lines = Column(Integer)
     deleted_lines = Column(Integer)
     commit_time = Column(DateTime(timezone=True), nullable=False)
+    commit_time_utc_offset = Column(Integer, nullable=False)
     parent_ids = Column(postgresql.ARRAY(String))
 
     author = relationship('Author', back_populates='commits')
@@ -83,6 +85,10 @@ class Commit(Base):
     def _init_properties(self):
         self.line_counts = {}
         self.test_counts = {}
+
+    def commit_time_tz(self):
+        timezone = datetime.timezone(datetime.timedelta(seconds=self.commit_time_utc_offset))
+        return self.commit_time.astimezone(timezone)
 
 
 Author.commits = relationship('Commit', order_by=Commit.commit_time, back_populates='author')
