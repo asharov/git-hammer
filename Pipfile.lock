@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "127b70e236f5cdd8a6c39acd390efbcf6a91b6b539fc90b5b394d78eb205ec60"
+            "sha256": "176c608001ddbb06f39fd244683f47e3b801ca34adade3c8c164b9ca3b750577"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,6 +16,14 @@
         ]
     },
     "default": {
+        "beautifultable": {
+            "hashes": [
+                "sha256:8deee768c7939578412f930c95c2ac51307fb723a6368e9e233091cdad240537",
+                "sha256:f1185c5bbb2d522a9c7dfe24cc55151f32379031d001c9731a2b55714b927089"
+            ],
+            "index": "pypi",
+            "version": "==0.7.0"
+        },
         "cycler": {
             "hashes": [
                 "sha256:1d8a5ae1ff6c5cf9b93e8811e581232ad8920aeec647c37316ceac982b08cb2d",

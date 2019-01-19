@@ -1,7 +1,7 @@
 import argparse
 
-from .graph import *
 from .hammer import Hammer
+from .summary import *
 
 
 def init_project(options):
@@ -38,6 +38,15 @@ def plot_graph(options):
         commits_per_hour(hammer)
 
 
+def print_summary(options):
+    hammer = Hammer(options.project)
+    commit_count_table(hammer)
+    print()
+    line_count_table(hammer)
+    print()
+    test_count_table(hammer)
+
+
 parser = argparse.ArgumentParser(prog='githammer',
                                  description='Extract statistics from Git repositories')
 command_parsers = parser.add_subparsers()
@@ -64,6 +73,11 @@ graph_parser.add_argument('type', help='The type of graph to make',
                           choices=['line-count', 'line-author-count', 'test-count', 'test-author-count', 'day-of-week',
                                    'time-of-day'])
 graph_parser.set_defaults(func=plot_graph)
+
+summary_parser = command_parsers.add_parser('summary',
+                                            help='Print summary information of the current state of the project')
+summary_parser.add_argument('project', help='Name of the project to summarize')
+summary_parser.set_defaults(func=print_summary)
 
 parsed_args = parser.parse_args()
 parsed_args.func(parsed_args)

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
-from .combinedcommit import _iter_combined_commits
+from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository
 from .frequency import Frequency
@@ -279,6 +279,11 @@ class Hammer:
         start_time = datetime.datetime.now()
         session.commit()
         print('Database commit time {}'.format(datetime.datetime.now() - start_time))
+
+    def head_commit(self):
+        head_commit_ids = [repository.head_commit_id for repository in self.repositories.values()]
+        head_commits = [self.shas_to_commits[commit_id] for commit_id in head_commit_ids]
+        return CombinedCommit(head_commits)
 
     def iter_authors(self):
         return set(self.names_to_authors.values()).__iter__()

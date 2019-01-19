@@ -13,6 +13,7 @@ matplotlib = "*"
 python-dateutil = "*"
 psycopg2-binary = "*"
 globber = "*"
+beautifultable = "*"
 
 [requires]
 python_version = "3.7"
