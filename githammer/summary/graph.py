@@ -87,4 +87,5 @@ def commits_per_weekday(hammer):
     plot = figure.add_subplot(111)
     plot.bar(range(len(count_array)), count_array)
     figure.tight_layout()
+    mpplot.xticks(range(len(count_array)), ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     mpplot.show()
