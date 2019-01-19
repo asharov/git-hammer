@@ -1,5 +1,5 @@
 {
-    "sourceFiles": [
-	"*.py"
-    ]
+  "sourceFiles": [
+    "githammer/**/*.py"
+  ]
 }
