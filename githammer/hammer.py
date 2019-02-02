@@ -84,36 +84,36 @@ class DatabaseNotInitializedError(Exception):
 class Hammer:
 
     def _ensure_database_exists(self):
-        if not database_exists(self.engine.url):
-            create_database(self.engine.url)
-            Base.metadata.create_all(self.engine)
+        if not database_exists(self._engine.url):
+            create_database(self._engine.url)
+            Base.metadata.create_all(self._engine)
 
     def _fail_unless_database_exists(self):
-        if not database_exists(self.engine.url):
+        if not database_exists(self._engine.url):
             raise DatabaseNotInitializedError('Database must have at least one repository')
 
     def _init_properties(self):
-        self.repositories = {}
-        self.names_to_authors = {}
-        self.shas_to_commits = {}
+        self._repositories = {}
+        self._names_to_authors = {}
+        self._shas_to_commits = {}
 
     def _build_repository_map(self, session):
         for dbrepo in session.query(Repository):
-            self.repositories[dbrepo.repository_path] = dbrepo
+            self._repositories[dbrepo.repository_path] = dbrepo
 
     def _build_author_map(self, session):
         for dbauthor in session.query(Author):
-            self.names_to_authors[dbauthor.canonical_name] = dbauthor
+            self._names_to_authors[dbauthor.canonical_name] = dbauthor
             for alias in dbauthor.aliases:
-                self.names_to_authors[alias] = dbauthor
+                self._names_to_authors[alias] = dbauthor
 
     def _build_commit_map(self, session):
         for dbcommit in session.query(Commit):
-            self.shas_to_commits[dbcommit.hexsha] = dbcommit
+            self._shas_to_commits[dbcommit.hexsha] = dbcommit
         for db_detail in session.query(AuthorCommitDetail):
-            self.shas_to_commits[db_detail.commit_id].line_counts[db_detail.author] = db_detail.line_count
+            self._shas_to_commits[db_detail.commit_id].line_counts[db_detail.author] = db_detail.line_count
             if db_detail.test_count:
-                self.shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
+                self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
 
     def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts, test_counts):
         if not _is_source_file(repository.configuration, path):
@@ -121,7 +121,7 @@ class Hammer:
         is_test_file = _is_test_file(repository.configuration, path)
         blame = repository.git_repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
-            author = self.names_to_authors[_author_line(commit)]
+            author = self._names_to_authors[_author_line(commit)]
             line_counts[author] = line_counts.get(author, 0) + len(lines)
             if is_test_file:
                 for line in lines:
@@ -170,24 +170,24 @@ class Hammer:
 
     def _add_author_alias_if_needed(self, repository, commit):
         author_line = _author_line(commit)
-        if not self.names_to_authors.get(author_line):
+        if not self._names_to_authors.get(author_line):
             canonical_name = repository.git_repository.git.show(commit.hexsha, format='%aN <%aE>', no_patch=True)
-            author = self.names_to_authors[canonical_name]
+            author = self._names_to_authors[canonical_name]
             author.aliases.append(author_line)
-            self.names_to_authors[author_line] = author
+            self._names_to_authors[author_line] = author
 
     def _add_canonical_authors(self, repository, session):
         author_lines = repository.git_repository.git.log(format='%aN <%aE>')
         for author_line in set(author_lines.splitlines()):
-            if not self.names_to_authors.get(author_line):
+            if not self._names_to_authors.get(author_line):
                 author = Author(canonical_name=author_line, aliases=[])
-                self.names_to_authors[author_line] = author
+                self._names_to_authors[author_line] = author
                 session.add(author)
 
     def _add_commit_object(self, repository, commit, session):
         self._add_author_alias_if_needed(repository, commit)
         author_line = _author_line(commit)
-        author = self.names_to_authors[author_line]
+        author = self._names_to_authors[author_line]
         commit_object = Commit(hexsha=commit.hexsha, author=author,
                                commit_time=commit.authored_datetime.astimezone(datetime.timezone.utc),
                                commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
@@ -211,12 +211,12 @@ class Hammer:
                     deleted_lines += int(match.group(2))
             commit_object.added_lines = added_lines
             commit_object.deleted_lines = deleted_lines
-        self.shas_to_commits[commit.hexsha] = commit_object
+        self._shas_to_commits[commit.hexsha] = commit_object
         session.add(commit_object)
 
     def _add_commit_line_counts(self, commit, line_counts, test_counts, session):
-        self.shas_to_commits[commit.hexsha].line_counts = line_counts
-        self.shas_to_commits[commit.hexsha].test_counts = test_counts
+        self._shas_to_commits[commit.hexsha].line_counts = line_counts
+        self._shas_to_commits[commit.hexsha].test_counts = test_counts
         for author, count in line_counts.items():
             detail = AuthorCommitDetail(
                 author_name=author.canonical_name, commit_id=commit.hexsha, line_count=count)
@@ -228,7 +228,7 @@ class Hammer:
         commits = []
         commit_id = repository.head_commit_id
         while commit_id:
-            commit = self.shas_to_commits.get(commit_id)
+            commit = self._shas_to_commits.get(commit_id)
             if commit:
                 commits.append(commit)
                 commit_id = commit.parent_ids[0] if commit.parent_ids else None
@@ -238,17 +238,17 @@ class Hammer:
 
     def _iter_unprocessed_commits(self, repository):
         for commit_id in repository.git_repository.git.log(reverse=True, date_order=True, format='%H').splitlines():
-            if not self.shas_to_commits.get(commit_id):
+            if not self._shas_to_commits.get(commit_id):
                 yield repository.git_repository.commit(commit_id)
 
     def __init__(self, project_name, database_server_url='sqlite:///'):
         start_time = datetime.datetime.now()
         database_name = 'git-hammer-' + project_name
-        self.engine = create_engine(database_server_url + database_name)
-        self.Session = sessionmaker(bind=self.engine)
+        self._engine = create_engine(database_server_url + database_name)
+        self._Session = sessionmaker(bind=self._engine)
         self._init_properties()
-        if database_exists(self.engine.url):
-            session = self.Session()
+        if database_exists(self._engine.url):
+            session = self._Session()
             self._build_repository_map(session)
             self._build_author_map(session)
             self._build_commit_map(session)
@@ -258,21 +258,21 @@ class Hammer:
     def add_repository(self, repository_path, configuration_file_path=None):
         self._ensure_database_exists()
         repository_path = os.path.abspath(repository_path)
-        if not self.repositories.get(repository_path):
+        if not self._repositories.get(repository_path):
             if not configuration_file_path:
                 configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
             else:
                 configuration_file_path = os.path.abspath(configuration_file_path)
-            session = self.Session(expire_on_commit=False)
+            session = self._Session(expire_on_commit=False)
             dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
-            self.repositories[repository_path] = dbrepo
+            self._repositories[repository_path] = dbrepo
             session.add(dbrepo)
             session.commit()
 
     def update_data(self):
         self._fail_unless_database_exists()
-        session = self.Session(expire_on_commit=False)
-        for repository in self.repositories.values():
+        session = self._Session(expire_on_commit=False)
+        for repository in self._repositories.values():
             print('Repository {}'.format(repository.repository_path))
             repository = session.merge(repository, load=False)
             start_time = datetime.datetime.now()
@@ -283,8 +283,8 @@ class Hammer:
                 self._add_commit_object(repository, commit, session)
                 if commit.parents:
                     for parent in commit.parents:
-                        self.shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
-                    parent_commit = self.shas_to_commits[commit.parents[0].hexsha]
+                        self._shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
+                    parent_commit = self._shas_to_commits[commit.parents[0].hexsha]
                     line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
                                                                               parent_commit.line_counts,
                                                                               parent_commit.test_counts)
@@ -311,17 +311,17 @@ class Hammer:
 
     def head_commit(self):
         self._fail_unless_database_exists()
-        head_commit_ids = [repository.head_commit_id for repository in self.repositories.values()]
-        head_commits = [self.shas_to_commits[commit_id] for commit_id in head_commit_ids]
+        head_commit_ids = [repository.head_commit_id for repository in self._repositories.values()]
+        head_commits = [self._shas_to_commits[commit_id] for commit_id in head_commit_ids]
         return CombinedCommit(head_commits)
 
     def iter_authors(self):
         self._fail_unless_database_exists()
-        return set(self.names_to_authors.values()).__iter__()
+        return set(self._names_to_authors.values()).__iter__()
 
     def iter_commits(self, **kwargs):
         self._fail_unless_database_exists()
-        iterators = [self._iter_branch(repository) for repository in self.repositories.values()]
+        iterators = [self._iter_branch(repository) for repository in self._repositories.values()]
         commit_iterator = _iter_combined_commits(iterators)
         if not kwargs.get('frequency'):
             for commit in commit_iterator:
@@ -336,7 +336,7 @@ class Hammer:
 
     def iter_individual_commits(self):
         self._fail_unless_database_exists()
-        session = self.Session()
+        session = self._Session()
         for commit in session.query(Commit).order_by(Commit.commit_time):
             yield commit
         session.close()
