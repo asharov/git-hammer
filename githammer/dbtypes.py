@@ -19,7 +19,7 @@ import re
 
 import git
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, orm
-from sqlalchemy.dialects import postgresql
+from sqlalchemy_utils import JSONType
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -64,7 +64,7 @@ class Author(Base):
     _name_regex = re.compile('^(.*)\\s+(<.*>)$')
 
     canonical_name = Column(String, primary_key=True)
-    aliases = Column(postgresql.ARRAY(String))
+    aliases = Column(JSONType)
 
     @property
     def name(self):
@@ -85,9 +85,9 @@ class Commit(Base):
     author_name = Column(String, ForeignKey('authors.canonical_name'), nullable=False)
     added_lines = Column(Integer)
     deleted_lines = Column(Integer)
-    commit_time = Column(DateTime(timezone=True), nullable=False)
+    commit_time = Column(DateTime(), nullable=False)
     commit_time_utc_offset = Column(Integer, nullable=False)
-    parent_ids = Column(postgresql.ARRAY(String))
+    parent_ids = Column(JSONType)
 
     author = relationship('Author', back_populates='commits')
 

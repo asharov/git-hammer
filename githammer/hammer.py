@@ -173,7 +173,8 @@ class Hammer:
         self._add_author_alias_if_needed(repository, commit)
         author_line = _author_line(commit)
         author = self.names_to_authors[author_line]
-        commit_object = Commit(hexsha=commit.hexsha, author=author, commit_time=commit.authored_datetime,
+        commit_object = Commit(hexsha=commit.hexsha, author=author,
+                               commit_time=commit.authored_datetime.astimezone(datetime.timezone.utc),
                                commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
                                parent_ids=[])
         if len(commit.parents) <= 1:
@@ -225,10 +226,10 @@ class Hammer:
             if not self.shas_to_commits.get(commit_id):
                 yield repository.git_repository.commit(commit_id)
 
-    def __init__(self, project_name, database_server_url='postgresql+psycopg2://localhost/'):
+    def __init__(self, project_name, database_server_url='sqlite:///'):
         start_time = datetime.datetime.now()
         database_name = 'git-hammer-' + project_name
-        engine = create_engine(database_server_url + database_name, use_batch_mode=True)
+        engine = create_engine(database_server_url + database_name)
         if not database_exists(engine.url):
             create_database(engine.url)
             Base.metadata.create_all(engine)

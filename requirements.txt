@@ -11,11 +11,10 @@ gitpython==2.1.11
 globber==0.2.0
 kiwisolver==1.0.1         # via matplotlib
 matplotlib==3.0.2
-numpy==1.16.0             # via matplotlib
-psycopg2-binary==2.7.6.1
+numpy==1.16.1             # via matplotlib
 pyparsing==2.3.1          # via matplotlib
 python-dateutil==2.7.5
 six==1.12.0               # via cycler, python-dateutil, sqlalchemy-utils
 smmap2==2.0.5             # via gitdb2
 sqlalchemy-utils==0.33.11
-sqlalchemy==1.2.16
+sqlalchemy==1.2.17

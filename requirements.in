@@ -3,6 +3,5 @@ sqlalchemy
 sqlalchemy-utils
 matplotlib
 python-dateutil
-psycopg2-binary
 globber
 beautifultable

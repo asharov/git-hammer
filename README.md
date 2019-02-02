@@ -14,15 +14,20 @@ implementing the feature.
 
 ## Setup
 
-You will need to have a [PostgreSQL](https://www.postgresql.org/)
-server running. Git Hammer stores historical information in a
-database, and currently this needs to be PostgreSQL because of
-some features that Git Hammer uses. The server URL can be
-configured by setting the `DATABASE_SERVER_URL` environment
-variable. If not set, the server is assumed to be running on
-`localhost` in the default port.
+By default, Git Hammer stores the historical information from
+the repository in an SQLite database file in the current
+directory. If you wish to change this default, set the
+`DATABASE_SERVER_URL` environment variable to a server URL
+according to the [SQLAlchemy engine documentation](https://docs.sqlalchemy.org/en/latest/core/engines.html).
+Note that Git Hammer will add the database name to this URL,
+so you should only specify the part before the database name.
+For instance, for PostgreSQL, you would use `postgres://localhost/`
+for a Postgres server running on the local computer. Note that
+if you wish to use a database other than SQLite, you may need
+to install the appropriate Python module to connect to the
+database.
 
-You will also need Python 3, at least version 3.5. It is a good
+You will need Python 3, at least version 3.5. It is a good
 idea to set up a virtual environment, like this (run this
 wherever you have cloned Git Hammer):
 ```bash
