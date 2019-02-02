@@ -102,7 +102,7 @@ class Commit(Base):
 
     def commit_time_tz(self):
         timezone = datetime.timezone(datetime.timedelta(seconds=self.commit_time_utc_offset))
-        return self.commit_time.astimezone(timezone)
+        return self.commit_time.replace(tzinfo=datetime.timezone.utc).astimezone(timezone)
 
 
 Author.commits = relationship('Commit', order_by=Commit.commit_time, back_populates='author')
