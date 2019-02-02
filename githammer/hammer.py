@@ -77,22 +77,37 @@ def _start_of_interval(dt, frequency):
         return _start_of_interval(january_dt, Frequency.monthly)
 
 
+class DatabaseNotInitializedError(Exception):
+    pass
+
+
 class Hammer:
 
-    def _build_repository_map(self, session):
+    def _ensure_database_exists(self):
+        if not database_exists(self.engine.url):
+            create_database(self.engine.url)
+            Base.metadata.create_all(self.engine)
+
+    def _fail_unless_database_exists(self):
+        if not database_exists(self.engine.url):
+            raise DatabaseNotInitializedError('Database must have at least one repository')
+
+    def _init_properties(self):
         self.repositories = {}
+        self.names_to_authors = {}
+        self.shas_to_commits = {}
+
+    def _build_repository_map(self, session):
         for dbrepo in session.query(Repository):
             self.repositories[dbrepo.repository_path] = dbrepo
 
     def _build_author_map(self, session):
-        self.names_to_authors = {}
         for dbauthor in session.query(Author):
             self.names_to_authors[dbauthor.canonical_name] = dbauthor
             for alias in dbauthor.aliases:
                 self.names_to_authors[alias] = dbauthor
 
     def _build_commit_map(self, session):
-        self.shas_to_commits = {}
         for dbcommit in session.query(Commit):
             self.shas_to_commits[dbcommit.hexsha] = dbcommit
         for db_detail in session.query(AuthorCommitDetail):
@@ -229,19 +244,19 @@ class Hammer:
     def __init__(self, project_name, database_server_url='sqlite:///'):
         start_time = datetime.datetime.now()
         database_name = 'git-hammer-' + project_name
-        engine = create_engine(database_server_url + database_name)
-        if not database_exists(engine.url):
-            create_database(engine.url)
-            Base.metadata.create_all(engine)
-        self.Session = sessionmaker(bind=engine)
-        session = self.Session()
-        self._build_repository_map(session)
-        self._build_author_map(session)
-        self._build_commit_map(session)
-        session.close()
+        self.engine = create_engine(database_server_url + database_name)
+        self.Session = sessionmaker(bind=self.engine)
+        self._init_properties()
+        if database_exists(self.engine.url):
+            session = self.Session()
+            self._build_repository_map(session)
+            self._build_author_map(session)
+            self._build_commit_map(session)
+            session.close()
         print('Init time {}'.format(datetime.datetime.now() - start_time))
 
     def add_repository(self, repository_path, configuration_file_path=None):
+        self._ensure_database_exists()
         repository_path = os.path.abspath(repository_path)
         if not self.repositories.get(repository_path):
             if not configuration_file_path:
@@ -255,6 +270,7 @@ class Hammer:
             session.commit()
 
     def update_data(self):
+        self._fail_unless_database_exists()
         session = self.Session(expire_on_commit=False)
         for repository in self.repositories.values():
             print('Repository {}'.format(repository.repository_path))
@@ -294,14 +310,17 @@ class Hammer:
         print('Database commit time {}'.format(datetime.datetime.now() - start_time))
 
     def head_commit(self):
+        self._fail_unless_database_exists()
         head_commit_ids = [repository.head_commit_id for repository in self.repositories.values()]
         head_commits = [self.shas_to_commits[commit_id] for commit_id in head_commit_ids]
         return CombinedCommit(head_commits)
 
     def iter_authors(self):
+        self._fail_unless_database_exists()
         return set(self.names_to_authors.values()).__iter__()
 
     def iter_commits(self, **kwargs):
+        self._fail_unless_database_exists()
         iterators = [self._iter_branch(repository) for repository in self.repositories.values()]
         commit_iterator = _iter_combined_commits(iterators)
         if not kwargs.get('frequency'):
@@ -316,6 +335,7 @@ class Hammer:
                     next_commit_time = kwargs['frequency'].next_instance(start)
 
     def iter_individual_commits(self):
+        self._fail_unless_database_exists()
         session = self.Session()
         for commit in session.query(Commit).order_by(Commit.commit_time):
             yield commit

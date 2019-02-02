@@ -1,2 +1,2 @@
 from .frequency import Frequency
-from .hammer import Hammer
+from .hammer import Hammer, DatabaseNotInitializedError

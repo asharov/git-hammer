@@ -27,13 +27,6 @@ def make_hammer(project):
         return Hammer(project)
 
 
-def init_project(options):
-    hammer = make_hammer(options.project)
-    if options.repository:
-        hammer.add_repository(options.repository, options.configuration)
-        hammer.update_data()
-
-
 def update_project(options):
     hammer = make_hammer(options.project)
     hammer.update_data()
@@ -76,9 +69,9 @@ command_parsers = parser.add_subparsers()
 
 init_parser = command_parsers.add_parser('init-project', help='Initialize a new project')
 init_parser.add_argument('project', help='Name of the project to create')
-init_parser.add_argument('-r', '--repository', help='Git repository to create the project from')
+init_parser.add_argument('repository', help='Git repository to create the project from')
 init_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
-init_parser.set_defaults(func=init_project)
+init_parser.set_defaults(func=add_repository)
 
 update_parser = command_parsers.add_parser('update-project', help='Update an existing project with new commits')
 update_parser.add_argument('project', help='Name of the project to update')

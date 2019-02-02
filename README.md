@@ -44,27 +44,17 @@ below use a hypothetical project called "baffle". You should
 replace the name with your own.
 
 ```bash
-python -m githammer init-project baffle
+python -m githammer init-project baffle ~/projects/baffle
 ```
-This will create the database for the project baffle. There is
-nothing in the database except the tables.
-```bash
-python -m githammer add-repository baffle ~/projects/baffle
-```
-This will add the repository (here `~/projects/baffle`; replace
-that with the path to your repository) to the project. Git
-Hammer will print out a progress report while it goes through
-all the commits in the repository.
+This will create the database for the project baffle from the
+repository directory (here `~/projects/baffle`; replace that
+with the path to your repository). Git Hammer will print out
+a progress report while it goes through all the commits in the
+repository.
 
 (Incidentally, you should make sure that the main development
 branch is the one checked out in the repository. Currently,
 using Git Hammer really doesn't make sense otherwise.)
-
-It is also possible to give the repository directly to
-`init-project`, essentially combining these two commands:
-```bash
-python -m githammer init-project baffle --repository ~/projects/baffle
-```
 
 When the repository gets new development, first update the
 code in the repository to the latest version, and then run
@@ -151,11 +141,9 @@ defined by the
 [globber library](https://github.com/asharov/globber).
 
 The configuration file can be given as an option to the
-`init-project` or `add-repository` commands above:
+`init-project` command:
 ```bash
-python -m githammer init-project baffle --repository ~/projects/baffle --configuration ./baffle-config.json
-# Or
-python -m githammer add-repository baffle ~/projects/baffle --configuration ./baffle-config.json
+python -m githammer init-project baffle ~/projects/baffle --configuration ./baffle-config.json
 ```
 If the `--configuration` option is not given, but the repository
 contains a file named `git-hammer-config.json`, this file will
@@ -183,7 +171,9 @@ python -m githammer add-repository baffle ~/projects/baffle-common
 ```
 This will process the new repository, adding it to the project
 database. After this, any summary information will include
-data from all repositories of the project.
+data from all repositories of the project. Like `init-project`,
+`add-repository` also accepts the `--configuration` option to
+specify the configuration file for the new repository.
 
 ## License
 
