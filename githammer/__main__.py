@@ -35,7 +35,6 @@ def update_project(options):
 def add_repository(options):
     hammer = make_hammer(options.project)
     hammer.add_repository(options.repository, options.configuration)
-    hammer.update_data()
 
 
 def plot_graph(options):

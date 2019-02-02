@@ -224,6 +224,40 @@ class Hammer:
                 detail.test_count = test_counts[author]
             session.add(detail)
 
+    def _process_repository(self, repository, session):
+        print('Repository {}'.format(repository.repository_path))
+        repository = session.merge(repository, load=False)
+        start_time = datetime.datetime.now()
+        last_session_commit_time = start_time
+        self._add_canonical_authors(repository, session)
+        commit_count = 0
+        for commit in self._iter_unprocessed_commits(repository):
+            self._add_commit_object(repository, commit, session)
+            if commit.parents:
+                for parent in commit.parents:
+                    self._shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
+                parent_commit = self._shas_to_commits[commit.parents[0].hexsha]
+                line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
+                                                                          parent_commit.line_counts,
+                                                                          parent_commit.test_counts)
+            else:
+                full_stats_start_time = datetime.datetime.now()
+                line_counts, test_counts = self._make_full_commit_stats(repository, commit)
+                print('Commit {} stats time: {}'.format(commit.hexsha,
+                                                        datetime.datetime.now() - full_stats_start_time))
+            self._add_commit_line_counts(commit, line_counts, test_counts, session)
+            repository.head_commit_id = commit.hexsha
+            commit_count += 1
+            if commit_count % 20 == 0:
+                print('Commit {:>5}: {}'.format(commit_count, datetime.datetime.now() - start_time))
+            if datetime.datetime.now() - last_session_commit_time >= datetime.timedelta(minutes=5):
+                session_commit_start_time = datetime.datetime.now()
+                session.commit()
+                print('Commit {:>5}: Database commit time {}'.format(commit_count,
+                                                                     datetime.datetime.now() - session_commit_start_time))
+                last_session_commit_time = datetime.datetime.now()
+        print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
+
     def _iter_branch(self, repository):
         commits = []
         commit_id = repository.head_commit_id
@@ -267,44 +301,15 @@ class Hammer:
             dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
             self._repositories[repository_path] = dbrepo
             session.add(dbrepo)
+            session.flush()
+            self._process_repository(dbrepo, session)
             session.commit()
 
     def update_data(self):
         self._fail_unless_database_exists()
         session = self._Session(expire_on_commit=False)
         for repository in self._repositories.values():
-            print('Repository {}'.format(repository.repository_path))
-            repository = session.merge(repository, load=False)
-            start_time = datetime.datetime.now()
-            last_session_commit_time = start_time
-            self._add_canonical_authors(repository, session)
-            commit_count = 0
-            for commit in self._iter_unprocessed_commits(repository):
-                self._add_commit_object(repository, commit, session)
-                if commit.parents:
-                    for parent in commit.parents:
-                        self._shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
-                    parent_commit = self._shas_to_commits[commit.parents[0].hexsha]
-                    line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
-                                                                              parent_commit.line_counts,
-                                                                              parent_commit.test_counts)
-                else:
-                    full_stats_start_time = datetime.datetime.now()
-                    line_counts, test_counts = self._make_full_commit_stats(repository, commit)
-                    print('Commit {} stats time: {}'.format(commit.hexsha,
-                                                            datetime.datetime.now() - full_stats_start_time))
-                self._add_commit_line_counts(commit, line_counts, test_counts, session)
-                repository.head_commit_id = commit.hexsha
-                commit_count += 1
-                if commit_count % 20 == 0:
-                    print('Commit {:>5}: {}'.format(commit_count, datetime.datetime.now() - start_time))
-                if datetime.datetime.now() - last_session_commit_time >= datetime.timedelta(minutes=5):
-                    session_commit_start_time = datetime.datetime.now()
-                    session.commit()
-                    print('Commit {:>5}: Database commit time {}'.format(commit_count,
-                                                                         datetime.datetime.now() - session_commit_start_time))
-                    last_session_commit_time = datetime.datetime.now()
-            print('Commit processing time {}'.format(datetime.datetime.now() - start_time))
+            self._process_repository(repository, session)
         start_time = datetime.datetime.now()
         session.commit()
         print('Database commit time {}'.format(datetime.datetime.now() - start_time))
