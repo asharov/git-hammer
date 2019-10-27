@@ -74,6 +74,12 @@ class Author(Base):
         else:
             return None
 
+    def __eq__(self, other):
+        return self.canonical_name == other.canonical_name and self.aliases == other.aliases
+
+    def __hash__(self):
+        return hash(self.canonical_name)
+
     def __repr__(self):
         return self.name
 
@@ -89,7 +95,7 @@ class Commit(Base):
     commit_time_utc_offset = Column(Integer, nullable=False)
     parent_ids = Column(JSONType)
 
-    author = relationship('Author', back_populates='commits')
+    author = relationship('Author', back_populates='commits', lazy='joined')
 
     def __init__(self, **kwargs):
         super(Commit, self).__init__(**kwargs)

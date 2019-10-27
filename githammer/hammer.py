@@ -343,5 +343,5 @@ class Hammer:
         self._fail_unless_database_exists()
         session = self._Session()
         for commit in session.query(Commit).order_by(Commit.commit_time):
-            yield commit
+            yield self._shas_to_commits.get(commit.hexsha)
         session.close()
