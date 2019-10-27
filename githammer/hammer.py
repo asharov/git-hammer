@@ -14,6 +14,7 @@
 
 import datetime
 import os
+import io
 import re
 from operator import itemgetter
 
@@ -115,18 +116,21 @@ class Hammer:
             if db_detail.test_count:
                 self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
 
+    def _process_lines_into_line_counts(self, repository, commit, path, lines, line_counts, test_counts):
+        is_test_file = _is_test_file(repository.configuration, path)
+        author = self._names_to_authors[_author_line(commit)]
+        line_counts[author] = line_counts.get(author, 0) + len(lines)
+        if is_test_file:
+            for line in lines:
+                if re.search(repository.test_line_regex, line):
+                    test_counts[author] = test_counts.get(author, 0) + 1
+
     def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts, test_counts):
         if not _is_source_file(repository.configuration, path):
             return
-        is_test_file = _is_test_file(repository.configuration, path)
         blame = repository.git_repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
-            author = self._names_to_authors[_author_line(commit)]
-            line_counts[author] = line_counts.get(author, 0) + len(lines)
-            if is_test_file:
-                for line in lines:
-                    if re.search(repository.test_line_regex, line):
-                        test_counts[author] = test_counts.get(author, 0) + 1
+            self._process_lines_into_line_counts(repository, commit, path, lines, line_counts, test_counts)
 
     def _make_full_commit_stats(self, repository, commit):
         line_counts = {}
@@ -134,7 +138,10 @@ class Hammer:
         for git_object in commit.tree.traverse(visit_once=True):
             if git_object.type != 'blob':
                 continue
-            self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts, test_counts)
+            if not _is_source_file(repository.configuration, git_object.path):
+                continue
+            lines = [line.decode('utf-8') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
+            self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
         return line_counts, test_counts
 
     def _make_diffed_commit_stats(self, repository, commit, previous_commit, previous_commit_line_counts,
