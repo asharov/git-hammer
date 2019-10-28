@@ -146,7 +146,7 @@ class Hammer:
 
     def _make_diffed_commit_stats(self, repository, commit, previous_commit, previous_commit_line_counts,
                                   previous_commit_test_counts):
-        diff_index = previous_commit.diff(commit, w=True)
+        diff_index = previous_commit.diff(commit, w=True, ignore_submodules=True)
         current_files = set()
         previous_files = set()
         for add_diff in diff_index.iter_change_type('A'):
@@ -202,7 +202,7 @@ class Hammer:
         if len(commit.parents) <= 1:
             if len(commit.parents) == 1:
                 diff_stat = repository.git_repository.git.diff(
-                    commit.parents[0], commit, numstat=True)
+                    commit.parents[0], commit, numstat=True, ignore_submodules=True)
             else:
                 diff_stat = repository.git_repository.git.show(commit, numstat=True, format='')
             added_lines = 0
