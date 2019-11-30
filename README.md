@@ -1,5 +1,8 @@
 # Git Hammer
 
+[![Build Status](https://travis-ci.com/asharov/git-hammer.svg?branch=master)](https://travis-ci.com/asharov/git-hammer)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Git Hammer is a statistics tool for projects in git repositories.
 Its major feature is tracking the number of lines authored by
 each person for every commit, but it currently includes some
