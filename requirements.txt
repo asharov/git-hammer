@@ -10,7 +10,7 @@ gitdb2==2.0.6             # via gitpython
 gitpython==3.0.4
 globber==0.2.0
 kiwisolver==1.1.0         # via matplotlib
-matplotlib==3.1.1
+matplotlib==3.0.3
 numpy==1.17.3             # via matplotlib
 pyparsing==2.4.2          # via matplotlib
 python-dateutil==2.8.0
