@@ -140,7 +140,7 @@ class Hammer:
                 continue
             if not _is_source_file(repository.configuration, git_object.path):
                 continue
-            lines = [line.decode('utf-8') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
+            lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
             self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
         return line_counts, test_counts
 
