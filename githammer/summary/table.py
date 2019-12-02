@@ -35,7 +35,7 @@ def commit_count_table(hammer):
     for author, commit_count in commit_counts.items():
         table.append_row([author.name, commit_count])
     table.sort('Commits', reverse=True)
-    print(table)
+    return table
 
 
 def line_count_table(hammer):
@@ -44,7 +44,7 @@ def line_count_table(hammer):
     for author, line_count in head_commit.line_counts.items():
         table.append_row([author.name, line_count])
     table.sort('Lines', reverse=True)
-    print(table)
+    return table
 
 
 def test_count_table(hammer):
@@ -54,4 +54,5 @@ def test_count_table(hammer):
         for author, test_count in head_commit.test_counts.items():
             table.append_row([author.name, test_count])
         table.sort('Tests', reverse=True)
-        print(table)
+        return table
+    return None

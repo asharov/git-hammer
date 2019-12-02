@@ -14,6 +14,7 @@
 
 import argparse
 import os
+import matplotlib.pyplot as plt
 
 from .hammer import Hammer
 from .summary import *
@@ -39,27 +40,32 @@ def add_repository(options):
 
 def plot_graph(options):
     hammer = make_hammer(options.project)
+    figure = None
     if options.type == 'line-count':
-        total_lines(hammer)
+        figure = total_lines(hammer)
     elif options.type == 'line-author-count':
-        lines_per_author(hammer)
+        figure = lines_per_author(hammer)
     elif options.type == 'test-count':
-        total_tests(hammer)
+        figure = total_tests(hammer)
     elif options.type == 'test-author-count':
-        tests_per_author(hammer)
+        figure = tests_per_author(hammer)
     elif options.type == 'day-of-week':
-        commits_per_weekday(hammer)
+        figure = commits_per_weekday(hammer)
     elif options.type == 'time-of-day':
-        commits_per_hour(hammer)
+        figure = commits_per_hour(hammer)
+    if figure:
+        plt.show()
 
 
 def print_summary(options):
     hammer = make_hammer(options.project)
-    commit_count_table(hammer)
+    print(commit_count_table(hammer))
     print()
-    line_count_table(hammer)
-    print()
-    test_count_table(hammer)
+    print(line_count_table(hammer))
+    test_counts = test_count_table(hammer)
+    if test_counts:
+        print()
+        print(test_counts)
 
 
 parser = argparse.ArgumentParser(prog='githammer',

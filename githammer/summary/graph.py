@@ -34,7 +34,7 @@ def _plot_totals(hammer, counts_property):
     plot.plot(date_array, line_count_array, ls='-', marker='')
     figure.autofmt_xdate(rotation=45)
     figure.tight_layout()
-    mpplot.show()
+    return figure
 
 
 def _plot_totals_per_author(hammer, counts_property, min_count_per_author=0):
@@ -60,23 +60,23 @@ def _plot_totals_per_author(hammer, counts_property, min_count_per_author=0):
     figure.autofmt_xdate(rotation=45)
     figure.legend(loc='upper left')
     figure.tight_layout()
-    mpplot.show()
+    return figure
 
 
 def total_lines(hammer):
-    _plot_totals(hammer, 'line_counts')
+    return _plot_totals(hammer, 'line_counts')
 
 
 def total_tests(hammer):
-    _plot_totals(hammer, 'test_counts')
+    return _plot_totals(hammer, 'test_counts')
 
 
 def lines_per_author(hammer):
-    _plot_totals_per_author(hammer, 'line_counts')
+    return _plot_totals_per_author(hammer, 'line_counts')
 
 
 def tests_per_author(hammer):
-    _plot_totals_per_author(hammer, 'test_counts')
+    return _plot_totals_per_author(hammer, 'test_counts')
 
 
 def commits_per_hour(hammer):
@@ -87,7 +87,7 @@ def commits_per_hour(hammer):
     plot = figure.add_subplot(111)
     plot.bar(range(len(count_array)), count_array)
     figure.tight_layout()
-    mpplot.show()
+    return figure
 
 
 def commits_per_weekday(hammer):
@@ -100,4 +100,4 @@ def commits_per_weekday(hammer):
     figure.tight_layout()
     mpplot.xticks(range(len(count_array)),
                   ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
-    mpplot.show()
+    return figure
