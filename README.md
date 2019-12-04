@@ -3,6 +3,17 @@
 [![Build Status](https://travis-ci.com/asharov/git-hammer.svg?branch=master)](https://travis-ci.com/asharov/git-hammer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+---
+NOTE: If you have been using Git Hammer prior to December 4th,
+2019, your database is obsolete, and unfortunately you will need
+to rebuild it if you want to use the current version. This is
+because a necessary change in the database schema could not be
+automatically migrated from the old version. Git Hammer has
+now been set up to support database migrations better, and this
+situation hopefully won't happen again. My apologies for the
+inconvenience.
+---
+
 Git Hammer is a statistics tool for projects in git repositories.
 Its major feature is tracking the number of lines authored by
 each person for every commit, but it currently includes some
@@ -20,15 +31,12 @@ implementing the feature.
 By default, Git Hammer stores the historical information from
 the repository in an SQLite database file in the current
 directory. If you wish to change this default, set the
-`DATABASE_SERVER_URL` environment variable to a server URL
+`DATABASE_URL` environment variable to a database URL
 according to the [SQLAlchemy engine documentation](https://docs.sqlalchemy.org/en/latest/core/engines.html).
-Note that Git Hammer will add the database name to this URL,
-so you should only specify the part before the database name.
-For instance, for PostgreSQL, you would use `postgres://localhost/`
-for a Postgres server running on the local computer. Note that
-if you wish to use a database other than SQLite, you may need
-to install the appropriate Python module to connect to the
-database.
+This database will be created if it does not already exist.
+Note that if you wish to use a database other than SQLite,
+you may need to install the appropriate Python module to
+connect to the database.
 
 You will need Python 3, at least version 3.5. It is a good
 idea to set up a virtual environment, like this (run this
@@ -49,11 +57,11 @@ replace the name with your own.
 ```bash
 python -m githammer init-project baffle ~/projects/baffle
 ```
-This will create the database for the project baffle from the
-repository directory (here `~/projects/baffle`; replace that
-with the path to your repository). Git Hammer will print out
-a progress report while it goes through all the commits in the
-repository.
+This will create the database containing the project baffle
+from the repository directory (here `~/projects/baffle`;
+replace that with the path to your repository). Git Hammer
+will print out a progress report while it goes through all
+the commits in the repository.
 
 (Incidentally, you should make sure that the main development
 branch is the one checked out in the repository. Currently,

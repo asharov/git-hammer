@@ -12,11 +12,11 @@ def check_commit(index, commit_old, commit_new, attr):
                  format(index, commit_old.hexsha, attr, new_attr, old_attr))
 
 
-if len(sys.argv) < 3:
-    sys.exit('Usage: {} <known good project> <new project>'.format(sys.argv[0]))
+if len(sys.argv) < 5:
+    sys.exit('Usage: {} <known good project> <good database URL> <new project> <new database URL'.format(sys.argv[0]))
 
-hammer_old = Hammer(sys.argv[1])
-hammer_new = Hammer(sys.argv[2])
+hammer_old = Hammer(sys.argv[1], database_url=sys.argv[2])
+hammer_new = Hammer(sys.argv[3], database_url=sys.argv[4])
 
 count = 0
 

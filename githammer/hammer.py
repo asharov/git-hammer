@@ -25,7 +25,7 @@ from sqlalchemy_utils import create_database, database_exists
 
 from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .countdict import add_count_dict, subtract_count_dict
-from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository
+from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository, Project, ProjectRepository
 from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
@@ -84,23 +84,34 @@ class DatabaseNotInitializedError(Exception):
 
 class Hammer:
 
-    def _ensure_database_exists(self):
+    def _ensure_project_exists(self):
         if not database_exists(self._engine.url):
             create_database(self._engine.url)
             Base.metadata.create_all(self._engine)
+        session = self._Session()
+        if not session.query(Project).filter(Project.project_name == self.project_name).first():
+            project = Project(project_name=self.project_name)
+            session.add(project)
+            session.commit()
+        session.close()
 
     def _fail_unless_database_exists(self):
         if not database_exists(self._engine.url):
-            raise DatabaseNotInitializedError('Database must have at least one repository')
+            raise DatabaseNotInitializedError('Database must be created for this operation')
 
     def _init_properties(self):
-        self._repositories = {}
+        self._repositories = []
         self._names_to_authors = {}
         self._shas_to_commits = {}
 
+    def _commit_query(self, session):
+        return session.query(Commit).join(Repository, Commit.repository_id == Repository.id).join(
+            ProjectRepository).filter(ProjectRepository.project_name == self.project_name)
+
     def _build_repository_map(self, session):
-        for dbrepo in session.query(Repository):
-            self._repositories[dbrepo.repository_path] = dbrepo
+        for dbrepo in session.query(Repository).join(ProjectRepository).filter(
+                ProjectRepository.project_name == self.project_name):
+            self._repositories.append(dbrepo)
 
     def _build_author_map(self, session):
         for dbauthor in session.query(Author):
@@ -109,9 +120,10 @@ class Hammer:
                 self._names_to_authors[alias] = dbauthor
 
     def _build_commit_map(self, session):
-        for dbcommit in session.query(Commit):
+        for dbcommit in self._commit_query(session):
             self._shas_to_commits[dbcommit.hexsha] = dbcommit
-        for db_detail in session.query(AuthorCommitDetail):
+        commits = self._commit_query(session).subquery()
+        for db_detail in session.query(AuthorCommitDetail).join(commits):
             self._shas_to_commits[db_detail.commit_id].line_counts[db_detail.author] = db_detail.line_count
             if db_detail.test_count:
                 self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
@@ -198,7 +210,7 @@ class Hammer:
         commit_object = Commit(hexsha=commit.hexsha, author=author,
                                commit_time=commit.authored_datetime.astimezone(datetime.timezone.utc),
                                commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
-                               parent_ids=[])
+                               parent_ids=[], repository_id=repository.id)
         if len(commit.parents) <= 1:
             if len(commit.parents) == 1:
                 diff_stat = repository.git_repository.git.diff(
@@ -282,10 +294,10 @@ class Hammer:
             if not self._shas_to_commits.get(commit_id):
                 yield repository.git_repository.commit(commit_id)
 
-    def __init__(self, project_name, database_server_url='sqlite:///'):
+    def __init__(self, project_name, database_url='sqlite:///git-hammer.sqlite'):
         start_time = datetime.datetime.now()
-        database_name = 'git-hammer-' + project_name
-        self._engine = create_engine(database_server_url + database_name)
+        self.project_name = project_name
+        self._engine = create_engine(database_url)
         self._Session = sessionmaker(bind=self._engine)
         self._init_properties()
         if database_exists(self._engine.url):
@@ -297,17 +309,20 @@ class Hammer:
         print('Init time {}'.format(datetime.datetime.now() - start_time))
 
     def add_repository(self, repository_path, configuration_file_path=None):
-        self._ensure_database_exists()
+        self._ensure_project_exists()
         repository_path = os.path.abspath(repository_path)
-        if not self._repositories.get(repository_path):
+        if not next((repo for repo in self._repositories if repo.repository_path == repository_path), None):
             if not configuration_file_path:
                 configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
             else:
                 configuration_file_path = os.path.abspath(configuration_file_path)
             session = self._Session(expire_on_commit=False)
             dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
-            self._repositories[repository_path] = dbrepo
             session.add(dbrepo)
+            session.flush()
+            self._repositories.append(dbrepo)
+            project_repo = ProjectRepository(project_name=self.project_name, repository_id=dbrepo.id)
+            session.add(project_repo)
             session.flush()
             self._process_repository(dbrepo, session)
             session.commit()
@@ -315,7 +330,7 @@ class Hammer:
     def update_data(self):
         self._fail_unless_database_exists()
         session = self._Session(expire_on_commit=False)
-        for repository in self._repositories.values():
+        for repository in self._repositories:
             self._process_repository(repository, session)
         start_time = datetime.datetime.now()
         session.commit()
@@ -323,17 +338,27 @@ class Hammer:
 
     def head_commit(self):
         self._fail_unless_database_exists()
-        head_commit_ids = [repository.head_commit_id for repository in self._repositories.values()]
+        head_commit_ids = [repository.head_commit_id for repository in self._repositories]
         head_commits = [self._shas_to_commits[commit_id] for commit_id in head_commit_ids]
         return CombinedCommit(head_commits)
 
+    def iter_all_project_names(self):
+        self._fail_unless_database_exists()
+        session = self._Session()
+        for project in session.query(Project):
+            yield project.project_name
+        session.close()
+
     def iter_authors(self):
         self._fail_unless_database_exists()
-        return set(self._names_to_authors.values()).__iter__()
+        session = self._Session()
+        for dbauthor in self._commit_query(session).join(Author).with_entities(Author).distinct():
+            yield self._names_to_authors.get(dbauthor.canonical_name)
+        session.close()
 
     def iter_commits(self, **kwargs):
         self._fail_unless_database_exists()
-        iterators = [self._iter_branch(repository) for repository in self._repositories.values()]
+        iterators = [self._iter_branch(repository) for repository in self._repositories]
         commit_iterator = _iter_combined_commits(iterators)
         if not kwargs.get('frequency'):
             for commit in commit_iterator:
@@ -349,6 +374,6 @@ class Hammer:
     def iter_individual_commits(self):
         self._fail_unless_database_exists()
         session = self._Session()
-        for commit in session.query(Commit).order_by(Commit.commit_time):
+        for commit in self._commit_query(session).order_by(Commit.commit_time):
             yield self._shas_to_commits.get(commit.hexsha)
         session.close()

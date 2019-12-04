@@ -21,9 +21,9 @@ from .summary import *
 
 
 def make_hammer(project):
-    server_url = os.environ.get('DATABASE_SERVER_URL')
-    if server_url:
-        return Hammer(project, database_server_url=server_url)
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        return Hammer(project, database_url=database_url)
     else:
         return Hammer(project)
 
