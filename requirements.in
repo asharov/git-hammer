@@ -6,3 +6,5 @@ python-dateutil
 globber
 beautifultable
 alembic
+coverage
+codecov

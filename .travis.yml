@@ -3,4 +3,6 @@ python:
   - "3.5"
   - "3.8"
 script:
-  - python -m unittest tests
+  - coverage run --source githammer -m unittest tests
+after_success:
+  - codecov

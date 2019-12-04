@@ -1,6 +1,7 @@
 # Git Hammer
 
 [![Build Status](https://travis-ci.com/asharov/git-hammer.svg?branch=master)](https://travis-ci.com/asharov/git-hammer)
+[![codecov](https://codecov.io/gh/asharov/git-hammer/branch/master/graph/badge.svg)](https://codecov.io/gh/asharov/git-hammer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ---
