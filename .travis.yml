@@ -1,8 +1,19 @@
 language: python
 python:
-  - "3.5"
-  - "3.8"
+  - '3.5'
+  - '3.8'
 script:
   - coverage run --source githammer -m unittest tests
 after_success:
   - codecov
+deploy:
+  provider: pypi
+  user: __token__
+  password:
+    secure: BZgxmYYR84NSaOsZC9rKiRC+dA98uEHtOtmTg2iBivT/sVDeGOMEzFVdoITPziD5nv+BCeMArEdQfendVppI/dM6cWpRA9hoWMZhuOVQWytr/02mcl5HRpTObe4n1AXRDlhWiopsrKxz63NenlN8FichXUHPtYS5rKV0jwedh7SllzMJkqQITw+d70GjA5Y0HhJ/Eb3dW2CZCAksTv6Y8sjwlEy0Kqwg4jElARs1lVYFORS2waYwty/7W04S7v8Zd/qDjV9tf5IoFMAGw8Pk2PfC/AsWfFiZT1R3AOcK6H8yrtAYa0NMPNz/1y/Cb0o0vlJqpsblOO/LaXR4RtSlvKiXcQ/r6CknFhqL/rfFjfMfrseGHyJUmbwyPGnAs6X4Tb8WaDGhcGkcCRLOClPcvuBbrJIt8yEanRAG9NnKiOyg0iKpa87PDaqu12mYy7HmQl5aQIe+hoFpC5o/hUa0oRRxyPtm2FdiGwRXyOwbNq9BrxWjQfZGSBFLZZfqny09Qx3YQzZ8uPNhz8xHwgNz9bVH5tY3nqhJJbgcwN6jj6OU1ZtmCrqCoYhZiabdWYiUosDweAHFEG66FHD5XFhoawgIQFjb+BAajbRJ3ggrjraVgNe9NL1+01Ri05kpMO5ro6/QtNbQVJF6s+F+AaI5aU4FTkHHRcZGxk/GElBDvTo=
+  distributions: sdist bdist_wheel
+  skip_existing: true
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: true
