@@ -22,6 +22,7 @@ from globber import globber
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
+from sqlalchemy.exc import OperationalError
 
 from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .countdict import add_count_dict, subtract_count_dict
@@ -82,6 +83,10 @@ class DatabaseNotInitializedError(Exception):
     pass
 
 
+class OldDatabaseSchemaError(Exception):
+    pass
+
+
 class Hammer:
 
     def _ensure_project_exists(self):
@@ -109,9 +114,12 @@ class Hammer:
             ProjectRepository).filter(ProjectRepository.project_name == self.project_name)
 
     def _build_repository_map(self, session):
-        for dbrepo in session.query(Repository).join(ProjectRepository).filter(
-                ProjectRepository.project_name == self.project_name):
-            self._repositories.append(dbrepo)
+        try:
+            for dbrepo in session.query(Repository).join(ProjectRepository).filter(
+                    ProjectRepository.project_name == self.project_name):
+                self._repositories.append(dbrepo)
+        except OperationalError:
+            raise OldDatabaseSchemaError('Database created with too-old version of Git Hammer')
 
     def _build_author_map(self, session):
         for dbauthor in session.query(Author):
