@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.com/asharov/git-hammer.svg?branch=master)](https://travis-ci.com/asharov/git-hammer)
 [![codecov](https://codecov.io/gh/asharov/git-hammer/branch/master/graph/badge.svg)](https://codecov.io/gh/asharov/git-hammer)
+![PyPI](https://img.shields.io/pypi/v/git-hammer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ---
@@ -40,14 +41,27 @@ you may need to install the appropriate Python module to
 connect to the database.
 
 You will need Python 3, at least version 3.5. It is a good
-idea to set up a virtual environment, like this (run this
-wherever you have cloned Git Hammer):
+idea to set up a virtual environment, like this:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
+```
+Run these commands wherever you want to run Git Hammer. If
+you only want to use Git Hammer, you can install it with
+`pip`:
+```bash
+pip install git-hammer
+```
+If you want to use the latest development version or
+contribute to Git Hammer development, you need to clone
+this repository and run
+```bash
 pip install -r requirements.txt
 ```
-The rest of the commands below assume that this has been done.
+in the directory where you cloned Git Hammer (in this
+case you should create the virtual environment above in
+that directory as well). The rest of the commands below
+assume that one of these has been done.
 
 ## Creating a Project
 
@@ -64,9 +78,10 @@ replace that with the path to your repository). Git Hammer
 will print out a progress report while it goes through all
 the commits in the repository.
 
-(Incidentally, you should make sure that the main development
-branch is the one checked out in the repository. Currently,
-using Git Hammer really doesn't make sense otherwise.)
+Usually, you want your main development branch to be checked
+out in the repository, and not change the checked-out branch
+when updating Git Hammer data. This makes the statistics more
+relevant for the whole development team.
 
 When the repository gets new development, first update the
 code in the repository to the latest version, and then run
