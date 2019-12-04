@@ -35,14 +35,21 @@ _metadata = MetaData(naming_convention=_naming_convention)
 Base = declarative_base(metadata=_metadata)
 
 
+class Project(Base):
+    __tablename__ = 'projects'
+
+    project_name = Column(String, primary_key=True)
+
+
 class Repository(Base):
     __tablename__ = 'repositories'
 
-    repository_path = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    repository_path = Column(String)
     configuration_file_path = Column(String)
     head_commit_id = Column(String, ForeignKey('commits.hexsha'))
 
-    head_commit = relationship('Commit')
+    head_commit = relationship('Commit', foreign_keys=[head_commit_id])
 
     def __init__(self, **kwargs):
         super(Repository, self).__init__(**kwargs)
@@ -66,6 +73,13 @@ class Repository(Base):
         if test_line_regex:
             self.test_line_regex = re.compile(test_line_regex)
         self.git_repository = git.Repo(self.repository_path)
+
+
+class ProjectRepository(Base):
+    __tablename__ = 'projectrepository'
+
+    project_name = Column(String, ForeignKey('projects.project_name'), primary_key=True)
+    repository_id = Column(String, ForeignKey('repositories.id'), primary_key=True)
 
 
 class Author(Base):
@@ -103,6 +117,7 @@ class Commit(Base):
     commit_time = Column(DateTime(), nullable=False)
     commit_time_utc_offset = Column(Integer, nullable=False)
     parent_ids = Column(JSONType)
+    repository_id = Column(Integer, ForeignKey('repositories.id'))
 
     author = relationship('Author', back_populates='commits', lazy='joined')
 
