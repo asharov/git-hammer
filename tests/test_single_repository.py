@@ -2,8 +2,6 @@ import os
 
 from .hammer_test import HammerTest
 
-_second_commit_hexsha = '5151985f7e3551c73ccb65cda2b021194b30b30a'
-
 
 class HammerRepositoryTest(HammerTest):
 
@@ -29,6 +27,6 @@ class HammerRepositoryTest(HammerTest):
 
     def test_second_commit_line_counts_are_correct(self):
         initial_commit = self._fetch_commit(HammerRepositoryTest._main_repo_initial_commit_hexsha)
-        second_commit = self._fetch_commit(_second_commit_hexsha)
+        second_commit = self._fetch_commit(HammerRepositoryTest._main_repo_second_commit_hexsha)
         self.assertEqual(second_commit.line_counts[initial_commit.author], 10)
         self.assertEqual(second_commit.line_counts[second_commit.author], 4)

@@ -8,6 +8,7 @@ from githammer import Hammer
 class HammerTest(unittest.TestCase):
 
     _main_repo_initial_commit_hexsha = 'c153f2881f0f0025a9ff5754e74111333ce859cd'
+    _main_repo_second_commit_hexsha = '5151985f7e3551c73ccb65cda2b021194b30b30a'
 
     def _fetch_commit(self, hexsha, hammer=None):
         if hammer is None:
