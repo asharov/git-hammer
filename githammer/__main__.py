@@ -14,6 +14,7 @@
 
 import argparse
 import os
+import sys
 import matplotlib.pyplot as plt
 
 from .hammer import Hammer
@@ -54,18 +55,25 @@ def plot_graph(options):
     elif options.type == 'time-of-day':
         figure = commits_per_hour(hammer)
     if figure:
-        plt.show()
+        if options.output_file:
+            figure.savefig(options.output_file)
+        else:
+            plt.show()
 
 
 def print_summary(options):
     hammer = make_hammer(options.project)
-    print(commit_count_table(hammer))
-    print()
-    print(line_count_table(hammer))
+    handle = open(options.output_file, 'w') if options.output_file else sys.stdout
+    handle.write(str(commit_count_table(hammer)))
+    handle.write('\n\n')
+    handle.write(str(line_count_table(hammer)))
     test_counts = test_count_table(hammer)
     if test_counts:
-        print()
-        print(test_counts)
+        handle.write('\n\n')
+        handle.write(str(test_counts))
+    handle.write('\n')
+    if handle is not sys.stdout:
+        handle.close()
 
 
 parser = argparse.ArgumentParser(prog='githammer',
@@ -93,11 +101,15 @@ graph_parser.add_argument('project', help='Name of the project to graph')
 graph_parser.add_argument('type', help='The type of graph to make',
                           choices=['line-count', 'line-author-count', 'test-count', 'test-author-count', 'day-of-week',
                                    'time-of-day'])
+graph_parser.add_argument('-o', '--output-file',
+                          help='Name of the file to save the graph to. If omitted, graph is displayed on screen')
 graph_parser.set_defaults(func=plot_graph)
 
 summary_parser = command_parsers.add_parser('summary',
                                             help='Print summary information of the current state of the project')
 summary_parser.add_argument('project', help='Name of the project to summarize')
+summary_parser.add_argument('-o', '--output-file',
+                            help='Name of the file to print the summary to. If omitted, summary is printed to standard output')
 summary_parser.set_defaults(func=print_summary)
 
 parsed_args = parser.parse_args()
