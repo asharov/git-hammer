@@ -1,5 +1,7 @@
 import os
 
+from githammer import iter_all_project_names
+
 from .hammer_test import HammerTest
 
 
@@ -19,7 +21,7 @@ class HammerMultipleProjectsTest(HammerTest):
 
     def test_projects_are_inserted_in_database(self):
         self._create_second_project()
-        project_names = list(self.otherHammer.iter_all_project_names())
+        project_names = list(iter_all_project_names(self.database_url))
         self.assertEqual(sorted(project_names), ['otherTest', 'test'])
 
     def test_commits_from_other_projects_are_not_included(self):

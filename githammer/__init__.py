@@ -1,2 +1,2 @@
 from .frequency import Frequency
-from .hammer import Hammer, DatabaseNotInitializedError
+from .hammer import Hammer, iter_all_project_names, DatabaseNotInitializedError, OldDatabaseSchemaError

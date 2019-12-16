@@ -17,7 +17,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-from .hammer import Hammer
+from .hammer import Hammer, iter_all_project_names
 from .summary import *
 
 
@@ -37,6 +37,16 @@ def update_project(options):
 def add_repository(options):
     hammer = make_hammer(options.project)
     hammer.add_repository(options.repository, options.configuration)
+
+
+def list_projects(_):
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        iterator = iter_all_project_names(database_url=database_url)
+    else:
+        iterator = iter_all_project_names()
+    for name in iterator:
+        print(name)
 
 
 def plot_graph(options):
@@ -95,6 +105,9 @@ add_parser.add_argument('project', help='Project to add the repository to')
 add_parser.add_argument('repository', help='Path to the git repository to add')
 add_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
 add_parser.set_defaults(func=add_repository)
+
+list_parser = command_parsers.add_parser('list-projects', help='List names of existing projects')
+list_parser.set_defaults(func=list_projects)
 
 graph_parser = command_parsers.add_parser('graph', help='Draw line count per committer graph')
 graph_parser.add_argument('project', help='Name of the project to graph')
