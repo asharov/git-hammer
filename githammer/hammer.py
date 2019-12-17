@@ -34,6 +34,12 @@ _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 _default_database_url = 'sqlite:///git-hammer.sqlite'
 
 
+def _commit_exists(repository, hexsha):
+    status, out, err = repository.git_repository.git.cat_file('-e', hexsha, with_extended_output=True,
+                                                              with_exceptions=False)
+    return status == 0
+
+
 def _print_line_counts(line_counts):
     for author, count in sorted(line_counts.items(), key=itemgetter(1), reverse=True):
         print('{:>10}  {}'.format(count, author.canonical_name))
@@ -224,7 +230,7 @@ class Hammer:
                                commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
                                parent_ids=[], repository_id=repository.id)
         if len(commit.parents) <= 1:
-            if len(commit.parents) == 1:
+            if len(commit.parents) == 1 and _commit_exists(repository, commit.parents[0]):
                 diff_stat = repository.git_repository.git.diff(
                     commit.parents[0], commit, numstat=True, ignore_submodules=True)
             else:
@@ -267,10 +273,13 @@ class Hammer:
             if commit.parents:
                 for parent in commit.parents:
                     self._shas_to_commits[commit.hexsha].parent_ids.append(parent.hexsha)
-                parent_commit = self._shas_to_commits[commit.parents[0].hexsha]
-                line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
-                                                                          parent_commit.line_counts,
-                                                                          parent_commit.test_counts)
+                parent_commit = self._shas_to_commits.get(commit.parents[0].hexsha)
+                if parent_commit:
+                    line_counts, test_counts = self._make_diffed_commit_stats(repository, commit, commit.parents[0],
+                                                                              parent_commit.line_counts,
+                                                                              parent_commit.test_counts)
+                else:
+                    line_counts, test_counts = self._make_full_commit_stats(repository, commit)
             else:
                 full_stats_start_time = datetime.datetime.now()
                 line_counts, test_counts = self._make_full_commit_stats(repository, commit)
