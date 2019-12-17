@@ -17,7 +17,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-from .hammer import Hammer, iter_all_project_names
+from .hammer import Hammer, iter_all_project_names, iter_sources_and_tests
 from .summary import *
 
 
@@ -47,6 +47,16 @@ def list_projects(_):
         iterator = iter_all_project_names()
     for name in iterator:
         print(name)
+
+
+def list_sources(options):
+    for item_type, item in iter_sources_and_tests(options.repository, options.configuration):
+        if item_type == 'source-file':
+            print('S: {}'.format(item))
+        elif item_type == 'test-file':
+            print('T: {}'.format(item))
+        elif item_type == 'test-line':
+            print('|---{}'.format(item))
 
 
 def plot_graph(options):
@@ -106,8 +116,13 @@ add_parser.add_argument('repository', help='Path to the git repository to add')
 add_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
 add_parser.set_defaults(func=add_repository)
 
-list_parser = command_parsers.add_parser('list-projects', help='List names of existing projects')
-list_parser.set_defaults(func=list_projects)
+project_list_parser = command_parsers.add_parser('list-projects', help='List names of existing projects')
+project_list_parser.set_defaults(func=list_projects)
+
+source_list_parser = command_parsers.add_parser('list-sources', help='List source files and test lines in repository')
+source_list_parser.add_argument('repository', help='Git repository to examine')
+source_list_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
+source_list_parser.set_defaults(func=list_sources)
 
 graph_parser = command_parsers.add_parser('graph', help='Draw line count per committer graph')
 graph_parser.add_argument('project', help='Name of the project to graph')

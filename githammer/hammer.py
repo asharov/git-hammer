@@ -18,12 +18,14 @@ import io
 import re
 from operator import itemgetter
 
+import git
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 from sqlalchemy.exc import OperationalError
 
 from .combinedcommit import _iter_combined_commits, CombinedCommit
+from .config import Configuration
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository, Project, ProjectRepository
 from .frequency import Frequency
@@ -68,6 +70,25 @@ def iter_all_project_names(database_url=_default_database_url):
     for project in session.query(Project):
         yield project.project_name
     session.close()
+
+
+def iter_sources_and_tests(repository_path, configuration_file_path=None):
+    if configuration_file_path is None:
+        configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
+    configuration = Configuration(configuration_file_path)
+    repository = git.Repo(repository_path)
+    for git_object in repository.tree().traverse(visit_once=True):
+        if git_object.type != 'blob':
+            continue
+        if configuration.is_source_file(git_object.path):
+            if configuration.is_test_file(git_object.path):
+                yield 'test-file', git_object.path
+                lines = [line.decode('utf-8', 'ignore') for line in
+                         io.BytesIO(git_object.data_stream.read()).readlines()]
+                for line in configuration.iter_test_lines(git_object.path, lines):
+                    yield 'test-line', line.rstrip()
+            else:
+                yield 'source-file', git_object.path
 
 
 class DatabaseNotInitializedError(Exception):

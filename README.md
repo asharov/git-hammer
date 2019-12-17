@@ -183,6 +183,32 @@ moved. If the configuration changes, data that was already
 in the database will not be reprocessed with the new
 configuration.
 
+There is also a command to check what are the effects of a
+configuration. Run
+```bash
+python -m githammer list-sources ~/projects/baffle --configuration ./baffle-config.json
+```
+to print out a list of all files considered source or test files,
+and for each test file, the lines considered to be tests. A missing
+`--configuration` option is treated in the same way as with
+`init-project` above.
+
+A partial output of the `list-sources` command on the Git Hammer
+repository looks like this:
+```
+S: githammer/dbtypes.py
+S: githammer/frequency.py
+S: githammer/hammer.py
+T: tests/__init__.py
+T: tests/check_regression.py
+T: tests/hammer_test.py
+T: tests/test_init.py
+|---    def test_plain_init_does_not_create_database(self):
+|---    def test_update_fails_when_database_not_created(self):
+```
+Source files are marked with `S`, test files with `T`, and after
+each test file, its test lines are printed indented with `|---`.
+
 ## Multi-Repository Projects
 
 Sometimes, a team works on multiple repositories that all still
