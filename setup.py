@@ -5,7 +5,7 @@ with open('README.md', 'r') as file:
 
 setuptools.setup(
     name='git-hammer',
-    version='0.1.1',
+    version='0.2.0',
     author='Jaakko Kangasharju',
     author_email='ashar@iki.fi',
     description='Statistics tool for git repositories',
