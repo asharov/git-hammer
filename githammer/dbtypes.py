@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import datetime
-import errno
-import json
 import re
 
 import git
@@ -23,6 +21,8 @@ from sqlalchemy_utils import JSONType
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import MetaData
+
+from .config import Configuration
 
 _naming_convention = {
     "ix": 'ix_%(column_0_label)s',
@@ -57,21 +57,7 @@ class Repository(Base):
 
     @orm.reconstructor
     def _init_properties(self):
-        if self.configuration_file_path:
-            try:
-                fp = open(self.configuration_file_path, 'r')
-            except OSError as error:
-                if error.errno == errno.ENOENT:
-                    self.configuration = {}
-                else:
-                    raise error
-            else:
-                self.configuration = json.load(fp)
-        else:
-            self.configuration = {}
-        test_line_regex = self.configuration.get('testLineRegex')
-        if test_line_regex:
-            self.test_line_regex = re.compile(test_line_regex)
+        self.configuration = Configuration(self.configuration_file_path)
         self.git_repository = git.Repo(self.repository_path)
 
 

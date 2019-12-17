@@ -18,7 +18,6 @@ import io
 import re
 from operator import itemgetter
 
-from globber import globber
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
@@ -31,30 +30,6 @@ from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 _default_database_url = 'sqlite:///git-hammer.sqlite'
-
-
-def _matches_file_pattern(file, pattern):
-    if type(pattern) is str:
-        return globber.match(pattern, file)
-    elif type(pattern) is list:
-        return any(_matches_file_pattern(file, p) for p in pattern)
-    else:
-        raise TypeError('Pattern {} not list or string'.format(pattern))
-
-
-def _is_source_file(configuration, path):
-    source_files = configuration.get('sourceFiles')
-    excluded_source_files = configuration.get('excludedSourceFiles')
-    is_included = source_files is None or _matches_file_pattern(
-        path, source_files)
-    is_excluded = excluded_source_files is not None and _matches_file_pattern(
-        path, excluded_source_files)
-    return is_included and not is_excluded
-
-
-def _is_test_file(configuration, path):
-    test_files = configuration.get('testFiles')
-    return test_files is not None and _matches_file_pattern(path, test_files)
 
 
 def _print_line_counts(line_counts):
@@ -149,16 +124,12 @@ class Hammer:
                 self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
 
     def _process_lines_into_line_counts(self, repository, commit, path, lines, line_counts, test_counts):
-        is_test_file = _is_test_file(repository.configuration, path)
         author = self._names_to_authors[_author_line(commit)]
         line_counts[author] = line_counts.get(author, 0) + len(lines)
-        if is_test_file:
-            for line in lines:
-                if re.search(repository.test_line_regex, line):
-                    test_counts[author] = test_counts.get(author, 0) + 1
+        test_counts[author] = test_counts.get(author, 0) + len(list(repository.configuration.iter_test_lines(path, lines)))
 
     def _blame_blob_into_line_counts(self, repository, commit_to_blame, path, line_counts, test_counts):
-        if not _is_source_file(repository.configuration, path):
+        if not repository.configuration.is_source_file(path):
             return
         blame = repository.git_repository.blame(commit_to_blame, path, w=True)
         for commit, lines in blame:
@@ -170,7 +141,7 @@ class Hammer:
         for git_object in commit.tree.traverse(visit_once=True):
             if git_object.type != 'blob':
                 continue
-            if not _is_source_file(repository.configuration, git_object.path):
+            if not repository.configuration.is_source_file(git_object.path):
                 continue
             lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
             self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
@@ -244,7 +215,7 @@ class Hammer:
                 if match:
                     if match.group(1) == '-' or match.group(2) == '-':
                         continue
-                    if not _is_source_file(repository.configuration, match.group(3)):
+                    if not repository.configuration.is_source_file(match.group(3)):
                         continue
                     added_lines += int(match.group(1))
                     deleted_lines += int(match.group(2))
