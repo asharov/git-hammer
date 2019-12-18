@@ -25,7 +25,10 @@ class Configuration:
                 else:
                     raise error
             else:
-                config_json = json.load(fp)
+                try:
+                    config_json = json.load(fp)
+                finally:
+                    fp.close()
         else:
             config_json = {}
         if 'sourceFiles' in config_json:

@@ -220,11 +220,13 @@ class Hammer:
                 author = Author(canonical_name=author_line, aliases=[])
                 self._names_to_authors[author_line] = author
                 session.add(author)
+                session.flush()
 
     def _add_commit_object(self, repository, commit, session):
         self._add_author_alias_if_needed(repository, commit)
         author_line = _author_line(commit)
         author = self._names_to_authors[author_line]
+        author = session.merge(author, load=False)
         commit_object = Commit(hexsha=commit.hexsha, author=author,
                                commit_time=commit.authored_datetime.astimezone(datetime.timezone.utc),
                                commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
