@@ -4,3 +4,4 @@ from .test_submodule import HammerSubmoduleTest
 from .test_multiple_projects import HammerMultipleProjectsTest
 from .test_update import HammerUpdateTest
 from .test_shallow_repository import HammerShallowTest
+from .test_multiple_repositories import HammerMultipleRepositoriesTest

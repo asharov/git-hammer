@@ -20,6 +20,8 @@ class HammerTest(unittest.TestCase):
         return Hammer(project_name, self.database_url)
 
     def setUp(self):
+        print()
+        print(self.id())
         self.current_directory = os.path.abspath(os.path.dirname(__file__))
         self.working_directory = tempfile.TemporaryDirectory(prefix='git-hammer-')
         self.database_url = 'sqlite:///' + self.working_directory.name + '/test.sqlite'

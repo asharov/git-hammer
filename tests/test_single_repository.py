@@ -20,7 +20,6 @@ class HammerRepositoryTest(HammerTest):
 
     def test_commit_timestamps_have_correct_time(self):
         initial_commit = self._fetch_commit(HammerRepositoryTest._main_repo_initial_commit_hexsha)
-        print(initial_commit.commit_time_tz())
         self.assertEqual(initial_commit.commit_time_tz().hour, 11)
 
     def test_initial_commit_line_counts_are_correct(self):

@@ -50,7 +50,9 @@ class CombinedCommit:
 
     def __init__(self, commits):
         actual_commits = [commit for commit in commits if commit is not None]
-        self.commit_time = max(map(attrgetter('commit_time'), actual_commits))
+        max_index, max_commit = max(enumerate(actual_commits), key=lambda pair: pair[1].commit_time)
+        self.commit_time = max_commit.commit_time
+        self.commit_time_utc_offset = actual_commits[max_index].commit_time_utc_offset
         self.line_counts = {}
         self.test_counts = {}
         for commit in commits:
