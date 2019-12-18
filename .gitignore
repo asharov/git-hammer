@@ -124,3 +124,10 @@ dmypy.json
 
 .vscode/
 .idea/
+
+###
+### Local
+###
+
+# To allow keeping the database in this directory
+*.sqlite
