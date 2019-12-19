@@ -40,3 +40,21 @@ class HammerRepositoryTest(HammerTest):
         file_names = [name for (file_type, name) in files]
         self.assertIn(('source-file', 'file1.txt'), files)
         self.assertNotIn('file.dat', file_names)
+
+    def test_test_lines_are_counted_correctly(self):
+        test_commit = self._fetch_commit(HammerRepositoryTest._main_repo_test_commit_hexsha)
+        author = test_commit.author
+        self.assertEqual(self.hammer.head_commit().test_counts, {author: 1})
+
+    def test_line_counts_are_correct_after_merge(self):
+        initial_commit = self._fetch_commit(HammerRepositoryTest._main_repo_initial_commit_hexsha)
+        second_commit = self._fetch_commit(HammerRepositoryTest._main_repo_second_commit_hexsha)
+        test_commit = self._fetch_commit(HammerRepositoryTest._main_repo_test_commit_hexsha)
+        author_a = initial_commit.author
+        author_b = second_commit.author
+        author_c = test_commit.author
+        self.assertEqual(self.hammer.head_commit().line_counts, {
+            author_a: 7,
+            author_b: 9,
+            author_c: 2
+        })

@@ -20,4 +20,4 @@ class HammerShallowTest(HammerTest):
     def test_shallow_clone_has_correct_counts(self):
         commit = self._fetch_commit(HammerShallowTest._main_repo_head_commit_hexsha)
         line_counts = commit.line_counts.values()
-        self.assertEqual(sorted(line_counts), [14])
+        self.assertEqual(sorted(line_counts), [18])
