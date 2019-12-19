@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
+import datetime
 
 from dateutil.relativedelta import relativedelta
 
@@ -32,3 +33,16 @@ class Frequency(Enum):
             return dt + relativedelta(months=1)
         elif self is Frequency.yearly:
             return dt + relativedelta(years=1)
+
+    def start_of_interval(self, dt):
+        if self is Frequency.daily:
+            return datetime.datetime.combine(dt.date(), datetime.time(tzinfo=dt.tzinfo))
+        elif self is Frequency.weekly:
+            monday_dt = dt - datetime.timedelta(days=dt.weekday())
+            return Frequency.daily.start_of_interval(monday_dt)
+        elif self is Frequency.monthly:
+            first_dt = dt.replace(day=1)
+            return Frequency.daily.start_of_interval(first_dt)
+        elif self is Frequency.yearly:
+            january_dt = dt.replace(month=1)
+            return Frequency.monthly.start_of_interval(january_dt)

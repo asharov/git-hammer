@@ -28,7 +28,6 @@ from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .config import Configuration
 from .countdict import add_count_dict, subtract_count_dict
 from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository, Project, ProjectRepository
-from .frequency import Frequency
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 _default_database_url = 'sqlite:///git-hammer.sqlite'
@@ -47,20 +46,6 @@ def _print_line_counts(line_counts):
 
 def _author_line(commit):
     return '{} <{}>'.format(commit.author.name, commit.author.email)
-
-
-def _start_of_interval(dt, frequency):
-    if frequency is Frequency.daily:
-        return datetime.datetime.combine(dt.date(), datetime.time(tzinfo=dt.tzinfo))
-    elif frequency is Frequency.weekly:
-        monday_dt = dt - datetime.timedelta(days=dt.weekday())
-        return _start_of_interval(monday_dt, Frequency.daily)
-    elif frequency is Frequency.monthly:
-        first_dt = dt.replace(day=1)
-        return _start_of_interval(first_dt, Frequency.daily)
-    elif frequency is Frequency.yearly:
-        january_dt = dt.replace(month=1)
-        return _start_of_interval(january_dt, Frequency.monthly)
 
 
 def _fail_unless_database_exists(engine):
@@ -380,11 +365,12 @@ class Hammer:
                 yield commit
         else:
             next_commit_time = None
+            frequency = kwargs['frequency']
             for commit in commit_iterator:
                 if not next_commit_time or commit.commit_time >= next_commit_time:
                     yield commit
-                    start = _start_of_interval(commit.commit_time, kwargs['frequency'])
-                    next_commit_time = kwargs['frequency'].next_instance(start)
+                    start = frequency.start_of_interval(commit.commit_time)
+                    next_commit_time = frequency.next_instance(start)
 
     def iter_individual_commits(self):
         _fail_unless_database_exists(self._engine)
