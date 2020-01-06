@@ -24,6 +24,12 @@ from sqlalchemy.schema import MetaData
 
 from .config import Configuration
 
+
+def _time_offset_to_local_time(time, offset):
+    timezone = datetime.timezone(datetime.timedelta(seconds=offset))
+    return time.replace(tzinfo=datetime.timezone.utc).astimezone(timezone)
+
+
 _naming_convention = {
     "ix": 'ix_%(column_0_label)s',
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -48,6 +54,8 @@ class Repository(Base):
     repository_path = Column(String)
     configuration_file_path = Column(String)
     head_commit_id = Column(String, ForeignKey('commits.hexsha'))
+    start_time = Column(DateTime())
+    start_time_utc_offset = Column(Integer)
 
     head_commit = relationship('Commit', foreign_keys=[head_commit_id])
 
@@ -59,6 +67,12 @@ class Repository(Base):
     def _init_properties(self):
         self.configuration = Configuration(self.configuration_file_path)
         self.git_repository = git.Repo(self.repository_path)
+
+    def start_time_tz(self):
+        if self.start_time:
+            return _time_offset_to_local_time(self.start_time, self.start_time_utc_offset)
+        else:
+            return None
 
 
 class ProjectRepository(Base):
@@ -117,8 +131,7 @@ class Commit(Base):
         self.test_counts = {}
 
     def commit_time_tz(self):
-        timezone = datetime.timezone(datetime.timedelta(seconds=self.commit_time_utc_offset))
-        return self.commit_time.replace(tzinfo=datetime.timezone.utc).astimezone(timezone)
+        return _time_offset_to_local_time(self.commit_time, self.commit_time_utc_offset)
 
 
 Author.commits = relationship('Commit', order_by=Commit.commit_time, back_populates='author')

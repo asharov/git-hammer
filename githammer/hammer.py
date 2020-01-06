@@ -33,10 +33,23 @@ _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
 _default_database_url = 'sqlite:///git-hammer.sqlite'
 
 
+def _time_to_utc_offset(time):
+    utc_time = time.astimezone(datetime.timezone.utc)
+    offset = int(time.utcoffset().total_seconds())
+    return utc_time, offset
+
+
 def _commit_exists(repository, hexsha):
     status, out, err = repository.git_repository.git.cat_file('-e', hexsha, with_extended_output=True,
                                                               with_exceptions=False)
     return status == 0
+
+
+def _is_commit_in_range(repository, commit):
+    if not repository.start_time:
+        return True
+    else:
+        return commit.authored_datetime >= repository.start_time_tz()
 
 
 def _print_line_counts(line_counts):
@@ -111,6 +124,9 @@ class Hammer:
     def _commit_query(self, session):
         return session.query(Commit).join(Repository, Commit.repository_id == Repository.id).join(
             ProjectRepository).filter(ProjectRepository.project_name == self.project_name)
+
+    def _is_commit_processed(self, commit_id):
+        return commit_id in self._shas_to_commits
 
     def _build_repository_map(self, session):
         try:
@@ -211,9 +227,10 @@ class Hammer:
         author_line = _author_line(commit)
         author = self._names_to_authors[author_line]
         author = session.merge(author)
+        commit_time, commit_time_utc_offset = _time_to_utc_offset(commit.authored_datetime)
         commit_object = Commit(hexsha=commit.hexsha, author=author,
-                               commit_time=commit.authored_datetime.astimezone(datetime.timezone.utc),
-                               commit_time_utc_offset=int(commit.authored_datetime.utcoffset().total_seconds()),
+                               commit_time=commit_time,
+                               commit_time_utc_offset=commit_time_utc_offset,
                                parent_ids=[], repository_id=repository.id)
         if len(commit.parents) <= 1:
             if len(commit.parents) == 1 and _commit_exists(repository, commit.parents[0]):
@@ -298,8 +315,10 @@ class Hammer:
 
     def _iter_unprocessed_commits(self, repository):
         for commit_id in repository.git_repository.git.log(reverse=True, date_order=True, format='%H').splitlines():
-            if not self._shas_to_commits.get(commit_id):
-                yield repository.git_repository.commit(commit_id)
+            if not self._is_commit_processed(commit_id):
+                commit = repository.git_repository.commit(commit_id)
+                if _is_commit_in_range(repository, commit):
+                    yield commit
 
     def __init__(self, project_name, database_url=_default_database_url):
         start_time = datetime.datetime.now()
@@ -315,7 +334,7 @@ class Hammer:
             session.close()
         print('Init time {}'.format(datetime.datetime.now() - start_time))
 
-    def add_repository(self, repository_path, configuration_file_path=None):
+    def add_repository(self, repository_path, configuration_file_path=None, **kwargs):
         self._ensure_project_exists()
         repository_path = os.path.abspath(repository_path)
         if not next((repo for repo in self._repositories if repo.repository_path == repository_path), None):
@@ -325,6 +344,10 @@ class Hammer:
                 configuration_file_path = os.path.abspath(configuration_file_path)
             session = self._Session(expire_on_commit=False)
             dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
+            if kwargs.get('earliest_date'):
+                start_time, start_time_utc_offset = _time_to_utc_offset(kwargs.get('earliest_date'))
+                dbrepo.start_time = start_time
+                dbrepo.start_time_utc_offset = start_time_utc_offset
             session.add(dbrepo)
             session.flush()
             self._repositories.append(dbrepo)
