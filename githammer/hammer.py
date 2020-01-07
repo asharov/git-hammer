@@ -26,7 +26,7 @@ from sqlalchemy.exc import OperationalError
 
 from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .config import Configuration
-from .countdict import add_count_dict, subtract_count_dict
+from .countdict import add_count_dict, subtract_count_dict, normalize_count_dict
 from .dbtypes import Author, Base, Commit, AuthorCommitDetail, Repository, Project, ProjectRepository
 
 _diff_stat_regex = re.compile('^([0-9]+|-)\t([0-9]+|-)\t(.*)$')
@@ -163,7 +163,7 @@ class Hammer:
         for commit, lines in blame:
             self._process_lines_into_line_counts(repository, commit, path, lines, line_counts, test_counts)
 
-    def _make_full_commit_stats(self, repository, commit):
+    def _make_full_commit_stats(self, repository, commit, need_full_blame=False):
         line_counts = {}
         test_counts = {}
         for git_object in commit.tree.traverse(visit_once=True):
@@ -171,9 +171,12 @@ class Hammer:
                 continue
             if not repository.configuration.is_source_file(git_object.path):
                 continue
-            lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
-            self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
-        return line_counts, test_counts
+            if need_full_blame:
+                self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts, test_counts)
+            else:
+                lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
+                self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
+        return normalize_count_dict(line_counts), normalize_count_dict(test_counts)
 
     def _make_diffed_commit_stats(self, repository, commit, previous_commit, previous_commit_line_counts,
                                   previous_commit_test_counts):
@@ -282,7 +285,9 @@ class Hammer:
                                                                               parent_commit.line_counts,
                                                                               parent_commit.test_counts)
                 else:
-                    line_counts, test_counts = self._make_full_commit_stats(repository, commit)
+                    need_full_blame = _commit_exists(repository, commit.parents[0].hexsha)
+                    line_counts, test_counts = self._make_full_commit_stats(repository, commit,
+                                                                            need_full_blame=need_full_blame)
             else:
                 full_stats_start_time = datetime.datetime.now()
                 line_counts, test_counts = self._make_full_commit_stats(repository, commit)

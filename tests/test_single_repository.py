@@ -47,14 +47,9 @@ class HammerRepositoryTest(HammerTest):
         self.assertEqual(self.hammer.head_commit().test_counts, {author: 1})
 
     def test_line_counts_are_correct_after_merge(self):
-        initial_commit = self._fetch_commit(HammerRepositoryTest._main_repo_initial_commit_hexsha)
-        second_commit = self._fetch_commit(HammerRepositoryTest._main_repo_second_commit_hexsha)
-        test_commit = self._fetch_commit(HammerRepositoryTest._main_repo_test_commit_hexsha)
-        author_a = initial_commit.author
-        author_b = second_commit.author
-        author_c = test_commit.author
+        authors = {author.name: author for author in self.hammer.iter_authors()}
         self.assertEqual(self.hammer.head_commit().line_counts, {
-            author_a: 7,
-            author_b: 9,
-            author_c: 2
+            authors['Author A']: 7,
+            authors['Author B']: 9,
+            authors['Author C']: 2
         })
