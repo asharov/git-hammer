@@ -17,8 +17,10 @@ class HammerTest(unittest.TestCase):
             hammer = self.hammer
         return next(c for c in hammer.iter_individual_commits() if c.hexsha == hexsha)
 
-    def _make_hammer(self, project_name):
-        return Hammer(project_name, self.database_url)
+    def _make_hammer(self, project_name, database_url=None):
+        if not database_url:
+            database_url = self.database_url
+        return Hammer(project_name, database_url)
 
     def setUp(self):
         print()
