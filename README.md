@@ -240,6 +240,22 @@ data from all repositories of the project. Like `init-project`,
 `--earliest-commit-date` options with the same semantics for
 the added repository.
 
+## Database Migrations
+
+If you update Git Hammer, it is possible that the database
+schema is updated in the new version. This means that you will
+need to migrate any existing databases to the latest version.
+Migration is performed by running
+```bash
+HAMMER_DATABASE_URL=<URL of database to migrate> alembic upgrade head
+```
+(If you haven't installed Git Hammer with `pip`, run this command
+in the project directory and add `PYTHONPATH=.` at the beginning.)
+
+It is safe to run this even if the database schema has not changed
+in the update, so there is no need to try and figure that out before
+running the migration.
+
 ## License
 
 Git Hammer is licensed under the Apache Software License,
