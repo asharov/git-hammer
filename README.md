@@ -91,6 +91,17 @@ python -m githammer update-project baffle
 This will process all the new commits that were not yet seen
 into the database.
 
+If the repository is very old, with much history, you might
+not be interested in capturing all of it. `init-project`
+has the option `--earliest-commit-date` that provides a date
+so that commits prior to that date are not included. This
+would be used like
+```bash
+python -m githammer init-project baffle ~/projects/baffle --earliest-commit-date 2018-01-01
+```
+It is currently not possible to later add commits that were
+excluded by date when the repository was added.
+
 ## Showing Statistics
 
 After the project has been initialized and the repository added,
@@ -225,8 +236,9 @@ python -m githammer add-repository baffle ~/projects/baffle-common
 This will process the new repository, adding it to the project
 database. After this, any summary information will include
 data from all repositories of the project. Like `init-project`,
-`add-repository` also accepts the `--configuration` option to
-specify the configuration file for the new repository.
+`add-repository` also accepts the `--configuration` and
+`--earliest-commit-date` options with the same semantics for
+the added repository.
 
 ## License
 
