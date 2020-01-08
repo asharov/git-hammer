@@ -6,3 +6,4 @@ from .test_multiple_projects import HammerMultipleProjectsTest
 from .test_update import HammerUpdateTest
 from .test_shallow_repository import HammerShallowTest
 from .test_multiple_repositories import HammerMultipleRepositoriesTest
+from .test_limited_repository import HammerLimitedTest

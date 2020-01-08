@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def _normalize_count_dict(count_dict):
+
+def normalize_count_dict(count_dict):
     return {key: value for key, value in count_dict.items() if value != 0}
 
 
@@ -20,11 +21,11 @@ def subtract_count_dict(base_dict, dict_to_subtract):
     result_dict = base_dict.copy()
     for key, value in dict_to_subtract.items():
         result_dict[key] = result_dict.get(key, 0) - value
-    return _normalize_count_dict(result_dict)
+    return normalize_count_dict(result_dict)
 
 
 def add_count_dict(base_dict, dict_to_add):
     result_dict = base_dict.copy()
     for key, value in dict_to_add.items():
         result_dict[key] = result_dict.get(key, 0) + value
-    return _normalize_count_dict(result_dict)
+    return normalize_count_dict(result_dict)
