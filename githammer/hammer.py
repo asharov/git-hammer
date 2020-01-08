@@ -164,6 +164,7 @@ class Hammer:
             self._process_lines_into_line_counts(repository, commit, path, lines, line_counts, test_counts)
 
     def _make_full_commit_stats(self, repository, commit, need_full_blame=False):
+        stats_start_time = datetime.datetime.now()
         line_counts = {}
         test_counts = {}
         for git_object in commit.tree.traverse(visit_once=True):
@@ -176,6 +177,8 @@ class Hammer:
             else:
                 lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
                 self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
+        print('Commit {} stats time: {}'.format(commit.hexsha,
+                                                datetime.datetime.now() - stats_start_time))
         return normalize_count_dict(line_counts), normalize_count_dict(test_counts)
 
     def _make_diffed_commit_stats(self, repository, commit, previous_commit, previous_commit_line_counts,
@@ -289,10 +292,7 @@ class Hammer:
                     line_counts, test_counts = self._make_full_commit_stats(repository, commit,
                                                                             need_full_blame=need_full_blame)
             else:
-                full_stats_start_time = datetime.datetime.now()
                 line_counts, test_counts = self._make_full_commit_stats(repository, commit)
-                print('Commit {} stats time: {}'.format(commit.hexsha,
-                                                        datetime.datetime.now() - full_stats_start_time))
             self._add_commit_line_counts(commit, line_counts, test_counts, session)
             repository.head_commit_id = commit.hexsha
             commit_count += 1

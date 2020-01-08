@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import argparse
+import datetime
 import os
 import sys
 import matplotlib.pyplot as plt
+
+from dateutil.parser import parse
 
 from .hammer import Hammer, iter_all_project_names, iter_sources_and_tests
 from .summary import *
@@ -36,7 +39,13 @@ def update_project(options):
 
 def add_repository(options):
     hammer = make_hammer(options.project)
-    hammer.add_repository(options.repository, options.configuration)
+    if options.earliest_commit_date:
+        date = parse(options.earliest_commit_date)
+        if date.tzinfo is None or date.tzinfo.utcoffset(date) is None:
+            date = date.replace(tzinfo=datetime.timezone.utc)
+        hammer.add_repository(options.repository, options.configuration, earliest_date=date)
+    else:
+        hammer.add_repository(options.repository, options.configuration)
 
 
 def list_projects(_):
@@ -104,6 +113,7 @@ init_parser = command_parsers.add_parser('init-project', help='Initialize a new 
 init_parser.add_argument('project', help='Name of the project to create')
 init_parser.add_argument('repository', help='Git repository to create the project from')
 init_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
+init_parser.add_argument('--earliest-commit-date', help='Ignore commits prior to this date')
 init_parser.set_defaults(func=add_repository)
 
 update_parser = command_parsers.add_parser('update-project', help='Update an existing project with new commits')
@@ -114,6 +124,7 @@ add_parser = command_parsers.add_parser('add-repository', help='Add a repository
 add_parser.add_argument('project', help='Project to add the repository to')
 add_parser.add_argument('repository', help='Path to the git repository to add')
 add_parser.add_argument('-c', '--configuration', help='Path to the repository configuration file')
+add_parser.add_argument('--earliest-commit-date', help='Ignore commits prior to this date')
 add_parser.set_defaults(func=add_repository)
 
 project_list_parser = command_parsers.add_parser('list-projects', help='List names of existing projects')
