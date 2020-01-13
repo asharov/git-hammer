@@ -151,6 +151,15 @@ class Hammer:
             if db_detail.test_count:
                 self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
 
+    def _add_to_commit_map(self, session, repository):
+        for dbcommit in session.query(Commit).filter(Commit.repository_id == repository.id):
+            self._shas_to_commits[dbcommit.hexsha] = dbcommit
+        commits = session.query(Commit).filter(Commit.repository_id == repository.id).subquery()
+        for db_detail in session.query(AuthorCommitDetail).join(commits):
+            self._shas_to_commits[db_detail.commit_id].line_counts[db_detail.author] = db_detail.line_count
+            if db_detail.test_count:
+                self._shas_to_commits[db_detail.commit_id].test_counts[db_detail.author] = db_detail.test_count
+
     def _process_lines_into_line_counts(self, repository, commit, path, lines, line_counts, test_counts):
         author = self._names_to_authors[_author_line(commit)]
         line_counts[author] = line_counts.get(author, 0) + len(lines)
@@ -343,23 +352,27 @@ class Hammer:
         self._ensure_project_exists()
         repository_path = os.path.abspath(repository_path)
         if not next((repo for repo in self._repositories if repo.repository_path == repository_path), None):
-            if not configuration_file_path:
-                configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
-            else:
-                configuration_file_path = os.path.abspath(configuration_file_path)
             session = self._Session(expire_on_commit=False)
-            dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
-            if kwargs.get('earliest_date'):
-                start_time, start_time_utc_offset = _time_to_utc_offset(kwargs.get('earliest_date'))
-                dbrepo.start_time = start_time
-                dbrepo.start_time_utc_offset = start_time_utc_offset
-            session.add(dbrepo)
-            session.flush()
+            dbrepo = session.query(Repository).filter(Repository.repository_path == repository_path).first()
+            if dbrepo:
+                self._add_to_commit_map(session, dbrepo)
+            else:
+                if not configuration_file_path:
+                    configuration_file_path = os.path.join(repository_path, 'git-hammer-config.json')
+                else:
+                    configuration_file_path = os.path.abspath(configuration_file_path)
+                dbrepo = Repository(repository_path=repository_path, configuration_file_path=configuration_file_path)
+                if kwargs.get('earliest_date'):
+                    start_time, start_time_utc_offset = _time_to_utc_offset(kwargs.get('earliest_date'))
+                    dbrepo.start_time = start_time
+                    dbrepo.start_time_utc_offset = start_time_utc_offset
+                session.add(dbrepo)
+                session.flush()
+                self._process_repository(dbrepo, session)
+                session.flush()
             self._repositories.append(dbrepo)
             project_repo = ProjectRepository(project_name=self.project_name, repository_id=dbrepo.id)
             session.add(project_repo)
-            session.flush()
-            self._process_repository(dbrepo, session)
             session.commit()
 
     def update_data(self):
