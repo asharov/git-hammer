@@ -54,12 +54,12 @@ def _plot_totals_per_author(hammer, counts_property, min_count_per_author=0):
         date_array.append(commit.commit_time)
         for index, author in enumerate(author_list):
             count_array[index].append(getattr(commit, counts_property).get(author, 0))
-    figure = mpplot.figure()
+    figure = mpplot.figure(figsize=(10,6))
+    figure.subplots_adjust(right=0.7)
     plot = figure.add_subplot(111)
     plot.stackplot(date_array, count_array, labels=author_labels)
+    plot.legend(bbox_to_anchor=(1.0, 0.5), loc='center left')
     figure.autofmt_xdate(rotation=45)
-    figure.legend(loc='upper left')
-    figure.tight_layout()
     return figure
 
 
