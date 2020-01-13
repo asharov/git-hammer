@@ -46,7 +46,8 @@ def _plot_totals_per_author(hammer, counts_property, min_count_per_author=0):
     if not selected_authors:
         raise NoDataForGraphError(
             'No authors were found having at least a count of {} in a single commit'.format(min_count_per_author))
-    author_list = sorted(list(selected_authors), key=attrgetter('name'))
+    head_counts = getattr(hammer.head_commit(), counts_property)
+    author_list = sorted(list(selected_authors), key=lambda a: head_counts.get(a, 0), reverse=True)
     author_labels = [author.name for author in author_list]
     date_array = []
     count_array = [[] for _ in range(len(author_list))]
@@ -54,11 +55,12 @@ def _plot_totals_per_author(hammer, counts_property, min_count_per_author=0):
         date_array.append(commit.commit_time)
         for index, author in enumerate(author_list):
             count_array[index].append(getattr(commit, counts_property).get(author, 0))
-    figure = mpplot.figure(figsize=(10,6))
-    figure.subplots_adjust(right=0.7)
+    figure = mpplot.figure(figsize=(12,7))
+    figure.subplots_adjust(left=0.08, right=0.75, top=0.95, bottom=0.05)
     plot = figure.add_subplot(111)
     plot.stackplot(date_array, count_array, labels=author_labels)
-    plot.legend(bbox_to_anchor=(1.0, 0.5), loc='center left')
+    handles, labels = plot.get_legend_handles_labels()
+    plot.legend(handles[:25], labels[:25], bbox_to_anchor=(1.0, 0.5), loc='center left')
     figure.autofmt_xdate(rotation=45)
     return figure
 
