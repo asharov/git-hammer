@@ -167,7 +167,7 @@ class Hammer:
         stats_start_time = datetime.datetime.now()
         line_counts = {}
         test_counts = {}
-        for git_object in commit.tree.traverse(visit_once=True):
+        for git_object in commit.tree.traverse(prune=lambda i, d: i is git.Submodule):
             if git_object.type != 'blob':
                 continue
             if not repository.configuration.is_source_file(git_object.path):
@@ -175,8 +175,10 @@ class Hammer:
             if need_full_blame:
                 self._blame_blob_into_line_counts(repository, commit, git_object.path, line_counts, test_counts)
             else:
-                lines = [line.decode('utf-8', 'ignore') for line in io.BytesIO(git_object.data_stream.read()).readlines()]
-                self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts, test_counts)
+                lines = [line.decode('utf-8', 'ignore') for line in
+                         io.BytesIO(git_object.data_stream.read()).readlines()]
+                self._process_lines_into_line_counts(repository, commit, git_object.path, lines, line_counts,
+                                                     test_counts)
         print('Commit {} stats time: {}'.format(commit.hexsha,
                                                 datetime.datetime.now() - stats_start_time))
         return normalize_count_dict(line_counts), normalize_count_dict(test_counts)
