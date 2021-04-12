@@ -13,16 +13,16 @@
 # limitations under the License.
 
 import datetime
-import os
 import io
+import os
 import re
 from operator import itemgetter
 
 import git
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
-from sqlalchemy.exc import OperationalError
 
 from .combinedcommit import _iter_combined_commits, CombinedCommit
 from .config import Configuration
@@ -122,7 +122,7 @@ class Hammer:
         self._shas_to_commits = {}
 
     def _commit_query(self, session):
-        return session.query(Commit).join(Repository, Commit.repository_id == Repository.id).join(
+        return session.query(Commit).select_from(Commit).join(Repository, Commit.repository_id == Repository.id).join(
             ProjectRepository).filter(ProjectRepository.project_name == self.project_name)
 
     def _is_commit_processed(self, commit_id):
