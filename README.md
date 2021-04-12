@@ -5,17 +5,6 @@
 [![PyPI](https://img.shields.io/pypi/v/git-hammer)](https://pypi.org/project/git-hammer/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
----
-NOTE: If you have been using Git Hammer prior to December 4th,
-2019, your database is obsolete, and unfortunately you will need
-to rebuild it if you want to use the current version. This is
-because a necessary change in the database schema could not be
-automatically migrated from the old version. Git Hammer has
-now been set up to support database migrations better, and this
-situation hopefully won't happen again. My apologies for the
-inconvenience.
----
-
 Git Hammer is a statistics tool for projects in git repositories.
 Its major feature is tracking the number of lines authored by
 each person for every commit, but it currently includes some

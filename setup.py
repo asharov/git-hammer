@@ -5,7 +5,7 @@ with open('README.md', 'r') as file:
 
 setuptools.setup(
     name='git-hammer',
-    version='0.3.1',
+    version='0.3.2',
     author='Jaakko Kangasharju',
     author_email='ashar@iki.fi',
     description='Statistics tool for git repositories',
@@ -22,9 +22,9 @@ setuptools.setup(
     python_requires='>=3.5',
     install_requires=[
         'gitpython',
-        'sqlalchemy',
-        'sqlalchemy-utils',
-        'matplotlib',
+        'sqlalchemy >=1.4.7, <2.0',
+        'sqlalchemy-utils >=0.37.0',
+        'matplotlib <3.1',
         'python-dateutil',
         'globber',
         'beautifultable'
