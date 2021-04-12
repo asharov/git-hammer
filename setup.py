@@ -19,7 +19,7 @@ setuptools.setup(
         'Development Status :: 3 - Alpha',
         'Operating System :: OS Independent'
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.7',
     install_requires=[
         'gitpython',
         'sqlalchemy >=1.4.7, <2.0',

@@ -1,7 +1,7 @@
 language: python
 python:
-  - '3.5'
-  - '3.8'
+  - '3.7'
+  - '3.9'
 script:
   - coverage run --source githammer --omit 'githammer/__main__.py,githammer/summary/*.py' -m unittest tests
 after_success:
